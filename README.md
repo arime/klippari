@@ -1,0 +1,138 @@
+<p align="center">
+  <img src="docs/images/icon.png" width="128" height="128" alt="Klippari app icon">
+</p>
+
+<h1 align="center">Klippari</h1>
+
+<p align="center">A small background app for macOS that remembers the last things you
+copied and lets you paste any of them easily from the keyboard.</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/panel-dark.png">
+    <img src="docs/images/panel-light.png" width="760" alt="The Klippari panel listing recently copied text, an image, a file and a link, with the first row selected">
+  </picture>
+</p>
+
+## What it does
+
+- Records anything you copy regardless of content type: text, styled text, images, files
+- Keeps the last 50 items by default, across restarts
+- Never records what a password manager marks as concealed, nor
+  anything over 20 MB
+- Pastes an item as it was copied, or as plain text
+- Follows the system light or dark appearance
+- Lives in the menu bar and starts at login
+
+`docs/specification.md` describes the behaviour in full.
+
+## Keys
+
+| Key                        | What it does                              |
+| -------------------------- | ----------------------------------------- |
+| Shift+Cmd+V (configurable) | Open the panel, move down the list        |
+| Up / Down, Ctrl+P / Ctrl+N | Move the selection                        |
+| Return                     | Paste the selected item as it was copied  |
+| Shift+Return               | Paste it as plain text                    |
+| Cmd+1 to Cmd+9             | Paste that row straight away              |
+| Typing                     | Filter by text, file name or source app   |
+| Cmd+Backspace              | Remove the selected item from the history |
+| Esc                        | Clear the filter, then close              |
+
+The panel shows up to nine rows and scrolls beyond that. Drag it by
+its search row or footer to move it. It reopens where you left it.
+
+## Menu bar and settings
+
+The menu bar icon has:
+
+- **Pause/Resume Capture**: stop and restart recording.
+- **Clear History**: remove every item, after a confirmation.
+- **Reset Panel Position**: put the panel back in the middle.
+- **Settings…**: history size (5 to 500 items), the shortcut, and
+  start at login.
+- **Quit Klippari**.
+
+To change the shortcut, select the field in Settings, press Return and
+type the new combination. Standard commands such as Cmd+V and Cmd+Q are
+refused.
+
+## Build and install
+
+Requires Xcode 26 or later on macOS 15 or later. There are no
+third-party dependencies.
+
+```bash
+Scripts/build-app.sh --identity 'Apple Development: Your Name (TEAMID)'
+```
+
+This builds a release, signs it, installs it to
+`/Applications/Klippari.app` and launches it. Always run the app from
+there: the Accessibility permission and the login item are tied to that
+bundle.
+
+The signing identity is required and is not stored in the repository.
+Pass it with `--identity`, or set the `CODESIGN_IDENTITY` environment
+variable instead. List the identities on your Mac with:
+
+```bash
+security find-identity -v -p codesigning
+```
+
+Use the same identity for every build; with a different one, macOS
+treats the build as a new app and asks for the Accessibility permission
+again. Pass `--no-install` to only build into `build/`.
+
+Run the unit tests with:
+
+```bash
+swift test
+```
+
+`docs/manual-checklist.md` lists the checks that need a person at the
+Mac.
+
+## Permissions
+
+- **Accessibility** (System Settings › Privacy & Security ›
+  Accessibility). Needed to paste into other apps. Without it, Return
+  still puts the item on the clipboard and the panel says what to
+  grant.
+
+Reading the clipboard in the background needs no permission.
+
+## What is stored, and where
+
+History is kept in `~/Library/Application Support/Klippari/items`, one
+folder per item, readable only by you. Settings are in the preferences
+of `com.arime.Klippari`. Clear History in the menu removes every item.
+
+## Icon and screenshots
+
+The app icon is drawn in code. To regenerate it after changing
+`Scripts/make-icon.swift`:
+
+```bash
+swift Scripts/make-icon.swift build/AppIcon.iconset
+```
+
+```bash
+iconutil -c icns build/AppIcon.iconset -o Resources/AppIcon.icns
+```
+
+The screenshots above are rendered by the app from sample items, so
+they contain no real clipboard content:
+
+```bash
+.build/debug/Klippari --snapshot docs/images/panel-dark.png dark
+```
+
+## Layout
+
+- `Sources/ClipboardCore`: content model, capture rules, storage,
+  history, row presentation and panel state, all unit tested.
+- `Sources/Klippari`: the app itself (shortcut, panel, pasting, menu
+  bar, settings).
+- `Scripts`: the build-and-install script and the icon generator.
+- `docs/specification.md`: what the app does; the source of truth.
+- `docs/manual-checklist.md`: checks that need a person at the Mac.

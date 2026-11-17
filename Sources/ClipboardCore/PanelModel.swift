@@ -1,0 +1,127 @@
+import Foundation
+import Observation
+
+/// State of the history panel: the filter, the visible rows and which
+/// one Return will paste. Holds no UI code so it can be unit tested.
+@MainActor @Observable public final class PanelModel {
+    public struct Row: Identifiable, Equatable, Sendable {
+        public let id: UUID
+        /// 1...9 for the rows Cmd+digit can paste; nil after that.
+        public var number: Int?
+        public var presentation: RowPresentation
+        /// Empty when the source app is unknown.
+        public var sourceApp: String
+        public var age: String
+    }
+
+    public enum EscapeResult: Sendable {
+        case clearedQuery, close
+    }
+
+    private let store: HistoryStore
+    private let now: () -> Date
+    private var presentations: [UUID: RowPresentation] = [:]
+
+    /// Typing in the panel edits this; the first match becomes selected.
+    public var query: String = "" {
+        didSet {
+            guard query != oldValue else { return }
+            rebuild(keepingSelection: false)
+        }
+    }
+
+    public private(set) var rows: [Row] = []
+    public private(set) var selectedID: UUID?
+
+    /// Replaces the footer's key hints when set.
+    public var notice: String?
+
+    public init(store: HistoryStore, now: @escaping () -> Date = Date.init) {
+        self.store = store
+        self.now = now
+        store.onChange = { [weak self] in self?.rebuild(keepingSelection: true) }
+        rebuild(keepingSelection: false)
+    }
+
+    public var countLabel: String {
+        let total = store.items.count
+        if !query.trimmingCharacters(in: .whitespaces).isEmpty {
+            return "\(rows.count) of \(total)"
+        }
+        return total == 1 ? "1 item" : "\(total) items"
+    }
+
+    public var selectedItem: ClipItem? {
+        guard let selectedID, rows.contains(where: { $0.id == selectedID }) else { return nil }
+        return store.items.first { $0.id == selectedID }
+    }
+
+    /// Called each time the panel is shown.
+    public func open() {
+        notice = nil
+        query = ""
+        rebuild(keepingSelection: false)
+    }
+
+    public func moveSelection(by delta: Int) {
+        guard let current = rows.firstIndex(where: { $0.id == selectedID }) else {
+            selectedID = rows.first?.id
+            return
+        }
+        let target = min(max(current + delta, 0), rows.count - 1)
+        selectedID = rows[target].id
+    }
+
+    /// The item Cmd+n pastes, counting within the visible (filtered) rows.
+    public func item(quickNumber n: Int) -> ClipItem? {
+        guard (1...9).contains(n), n <= rows.count else { return nil }
+        let id = rows[n - 1].id
+        return store.items.first { $0.id == id }
+    }
+
+    public func deleteSelected() {
+        guard let index = rows.firstIndex(where: { $0.id == selectedID }) else { return }
+        let removed = rows[index].id
+        if index + 1 < rows.count {
+            selectedID = rows[index + 1].id
+        } else if index > 0 {
+            selectedID = rows[index - 1].id
+        } else {
+            selectedID = nil
+        }
+        store.remove(removed)
+    }
+
+    public func escape() -> EscapeResult {
+        if query.isEmpty { return .close }
+        query = ""
+        return .clearedQuery
+    }
+
+    private func rebuild(keepingSelection: Bool) {
+        let items = store.items
+        let liveIDs = Set(items.map(\.id))
+        presentations = presentations.filter { liveIDs.contains($0.key) }
+
+        let date = now()
+        var built: [Row] = []
+        for item in items {
+            let presentation = presentations[item.id] ?? RowPresentation(item)
+            presentations[item.id] = presentation
+            guard presentation.matches(query) else { continue }
+            built.append(Row(
+                id: item.id,
+                number: built.count < 9 ? built.count + 1 : nil,
+                presentation: presentation,
+                sourceApp: item.sourceApp ?? "",
+                age: ageString(from: item.lastUsedAt, now: date)
+            ))
+        }
+        rows = built
+
+        if keepingSelection, let selectedID, built.contains(where: { $0.id == selectedID }) {
+            return
+        }
+        selectedID = built.first?.id
+    }
+}
