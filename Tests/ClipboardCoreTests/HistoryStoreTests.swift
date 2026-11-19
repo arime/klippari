@@ -217,6 +217,56 @@ func at(_ seconds: TimeInterval) -> Date {
         #expect(itemsOnDisk() == 2)
     }
 
+    // MARK: Failures while clearing and restoring
+
+    @Test func anItemThatCannotBeArchivedStaysInTheHistory() throws {
+        let store = makeStore()
+        let stuck = store.add(text("a"), sourceApp: nil, now: at(1))
+        store.add(text("b"), sourceApp: nil, now: at(2))
+        // A directory that cannot be written to cannot be moved to
+        // another folder.
+        let directory = root.appendingPathComponent(stuck.id.uuidString)
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path) }
+
+        #expect(store.archiveAll(now: at(10)) == 1)
+        #expect(store.items.map(\.id) == [stuck.id])
+        #expect(store.fullContent(for: stuck.id) == text("a"))
+        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(10)))
+    }
+
+    @Test func clearingChangesNothingWhenTheArchiveCannotBeMade() throws {
+        let store = makeStore()
+        store.add(text("a"), sourceApp: nil, now: at(1))
+        try Data().write(to: store.archiveRoot)
+        var changes = 0
+        store.onChange = { changes += 1 }
+        #expect(store.archiveAll(now: at(10)) == 0)
+        #expect(changes == 0)
+        #expect(store.items.map(\.content) == [text("a")])
+        #expect(itemsOnDisk() == 1)
+    }
+
+    @Test func anItemThatCannotBeRestoredStaysInTheArchive() throws {
+        let store = makeStore()
+        let stuck = store.add(text("a"), sourceApp: nil, now: at(1))
+        store.add(text("b"), sourceApp: nil, now: at(2))
+        store.archiveAll(now: at(10))
+        // Something is in the way of one item.
+        let blocker = root.appendingPathComponent(stuck.id.uuidString)
+        try FileManager.default.createDirectory(at: blocker, withIntermediateDirectories: true)
+
+        #expect(store.restoreArchive() == 1)
+        #expect(store.items.map(\.content) == [text("b")])
+        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(10)))
+
+        // With the way clear, the rest comes back and the archive goes.
+        try FileManager.default.removeItem(at: blocker)
+        #expect(store.restoreArchive() == 1)
+        #expect(store.items.map(\.content) == [text("b"), text("a")])
+        #expect(!FileManager.default.fileExists(atPath: store.archiveRoot.path))
+    }
+
     @Test func restoreWithoutAnArchiveDoesNothing() {
         let store = makeStore()
         store.add(text("a"), sourceApp: nil, now: at(1))

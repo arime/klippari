@@ -144,16 +144,24 @@ public struct ArchiveSummary: Equatable, Sendable {
     }
 
     /// Puts the archived items back, merged with what was copied since by
-    /// when each was last used, and removes the archive. Items already in
-    /// the history are not added twice, and the history size still
-    /// applies. Returns how many items came back.
+    /// when each was last used. Items already in the history are not
+    /// added twice, and the history size still applies. Only what came
+    /// back leaves the archive: an item that could not be moved stays
+    /// there, with the archive's date, to be restored later. Returns how
+    /// many items came back.
     @discardableResult
     public func restoreArchive() -> Int {
-        guard FileManager.default.fileExists(atPath: archiveRoot.path) else { return 0 }
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: archiveRoot.path) else { return 0 }
+        let archivedAt = (try? fm.attributesOfItem(atPath: archiveRoot.path))?[.modificationDate]
         let archive = ItemStorage(root: archiveRoot)
         let present = Set(items.map(\.contentHash))
         var restored = 0
-        for item in archive.loadAll() where !present.contains(item.contentHash) {
+        for item in archive.loadAll() {
+            if present.contains(item.contentHash) {
+                archive.delete(id: item.id)
+                continue
+            }
             do {
                 try archive.move(id: item.id, to: storage)
                 items.append(item)
@@ -162,7 +170,11 @@ public struct ArchiveSummary: Equatable, Sendable {
                 Self.logger.error("Could not restore item: \(error.localizedDescription, privacy: .public)")
             }
         }
-        try? FileManager.default.removeItem(at: archiveRoot)
+        removeArchiveIfEmpty()
+        if let archivedAt {
+            // Moving items out touched what is left of the archive.
+            try? fm.setAttributes([.modificationDate: archivedAt], ofItemAtPath: archiveRoot.path)
+        }
         items.sort { $0.lastUsedAt > $1.lastUsedAt }
         trim()
         onChange?()
