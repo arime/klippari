@@ -133,6 +133,28 @@ public struct RestoreResult: Equatable, Sendable {
         return item
     }
 
+    /// Takes over another store's items, as when the history moves from
+    /// a folder kept for one run to the saved one. Each item is saved
+    /// here with its full content, read from the other store. Content
+    /// already here is not added twice, and the history size applies.
+    public func adopt(_ other: HistoryStore) {
+        let present = Set(items.map(\.contentHash))
+        for var item in other.items where !present.contains(item.contentHash) {
+            let full = other.fullContent(for: item.id) ?? item.content
+            item.content = full
+            do {
+                try storage.save(item)
+                item.content = full.lightened
+            } catch {
+                Self.logger.error("Could not save item: \(error.localizedDescription, privacy: .public)")
+            }
+            items.append(item)
+        }
+        items.sort { $0.lastUsedAt > $1.lastUsedAt }
+        trim()
+        onChange?()
+    }
+
     public func markUsed(_ id: UUID, now: Date) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         touch(index, now: now)
