@@ -22,6 +22,9 @@ import ClipboardCore
     /// Oldest first, for dropping previews beyond the limit.
     private var cacheOrder: [UUID] = []
     private var loading: Set<UUID> = []
+    /// Items no preview could be made for, so they are not tried again
+    /// on every change of the list. An item's content never changes.
+    private var failed: Set<UUID> = []
     private var shownID: UUID?
 
     init(storage: ItemStorage) {
@@ -83,13 +86,16 @@ import ClipboardCore
     /// Makes previews for these items in the background, so they show at
     /// once when selected or hovered.
     func preload(_ ids: some Sequence<UUID>) {
-        for id in ids.prefix(Self.cacheLimit) where cache[id] == nil {
+        let wanted = Array(ids)
+        // Forget the failures of items no longer listed.
+        failed.formIntersection(wanted)
+        for id in wanted.prefix(Self.cacheLimit) where cache[id] == nil {
             load(id)
         }
     }
 
     private func load(_ id: UUID) {
-        guard loading.insert(id).inserted else { return }
+        guard !failed.contains(id), loading.insert(id).inserted else { return }
         let storage = storage
         let maxPixel = Self.maxPixel
         Task { [weak self] in
@@ -98,7 +104,10 @@ import ClipboardCore
             }.value
             guard let self else { return }
             loading.remove(id)
-            guard let data, let image = NSImage(data: data) else { return }
+            guard let data, let image = NSImage(data: data) else {
+                failed.insert(id)
+                return
+            }
             remember(image, for: id)
             if shownID == id { imageView.image = image }
         }

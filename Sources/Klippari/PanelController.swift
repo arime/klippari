@@ -44,6 +44,7 @@ private final class HistoryPanel: NSPanel {
     @ObservationIgnored var selectedByPointer = false
     /// Frames of the rows on show, in the window's content coordinates
     /// (origin top left), so the image preview can line up with its row.
+    /// Empty while the Images setting is off.
     var rowFrames: [UUID: CGRect] = [:]
 }
 
@@ -138,6 +139,7 @@ private final class HistoryPanel: NSPanel {
     private func refreshPreview() {
         guard settings.magnifyImages else {
             preview.hide()
+            if !focus.rowFrames.isEmpty { focus.rowFrames = [:] }
             return
         }
         preview.preload(model.rows.lazy.filter { $0.presentation.kind == .image }.map(\.id))
