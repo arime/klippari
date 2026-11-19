@@ -26,6 +26,19 @@ copied and lets you paste any of them easily from the keyboard.</p>
 
 `docs/specification.md` describes the behaviour in full.
 
+## Install
+
+Requires macOS 15 or later, on Apple silicon or Intel.
+
+1. Download `Klippari-<version>.dmg` from the
+   [latest release](https://github.com/arime/klippari/releases/latest).
+2. Open it and drag Klippari onto the Applications folder.
+3. Open Klippari from Applications. The icon appears in the menu bar.
+   Always run it from there: the Accessibility permission and the login
+   item are tied to that copy.
+4. Allow Klippari in System Settings › Privacy & Security ›
+   Accessibility so it can paste into other apps.
+
 ## Keys
 
 | Key                        | What it does                              |
@@ -92,6 +105,30 @@ swift test
 `docs/manual-checklist.md` lists the checks that need a person at the
 Mac.
 
+## Release
+
+Releases are signed with a Developer ID certificate and notarized, so
+they open without Gatekeeper warnings. Store the notarization
+credentials in the keychain once, with an app-specific password:
+
+```bash
+xcrun notarytool store-credentials klippari-notary --apple-id you@example.com --team-id TEAMID
+```
+
+Set the version in `Resources/Info.plist`, then build the release disk
+image:
+
+```bash
+Scripts/release.sh --identity 'Developer ID Application: Your Name (TEAMID)' --notary-profile klippari-notary
+```
+
+This writes `build/Klippari-<version>.dmg`, signed, notarized and
+stapled. Tag the commit and publish it:
+
+```bash
+gh release create v1.0.0 build/Klippari-1.0.0.dmg --title 'Klippari 1.0.0'
+```
+
 ## Permissions
 
 - **Accessibility** (System Settings › Privacy & Security ›
@@ -133,6 +170,7 @@ they contain no real clipboard content:
   history, row presentation and panel state, all unit tested.
 - `Sources/Klippari`: the app itself (shortcut, panel, pasting, menu
   bar, settings).
-- `Scripts`: the build-and-install script and the icon generator.
+- `Scripts`: the build-and-install script, the release script and the
+  icon generator.
 - `docs/specification.md`: what the app does; the source of truth.
 - `docs/manual-checklist.md`: checks that need a person at the Mac.
