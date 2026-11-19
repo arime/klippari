@@ -47,11 +47,13 @@ Expected behaviour is defined in `specification.md`.
 - [ ] With Position on in Settings and Accessibility granted, the
       panel opens just above the text field being typed in, without
       covering it, wherever the pointer is: in TextEdit, Safari, Notes
-      and an Electron app (from its second open). In a long document it
+      and an Electron app. In a long document it
       opens by the caret's line. Without a text field it opens just
       above the pointer; near the top of the screen it opens below it; near a
       side or corner it stays fully on screen. Copying while it is
       open above the pointer grows it upward.
+- [ ] With Position on and a busy or hung app in front, the panel
+      still opens within about half a second, by the pointer.
 - [ ] With more than nine items, scrolling the list with the trackpad
       and reopening shows the first row selected and in view.
 
