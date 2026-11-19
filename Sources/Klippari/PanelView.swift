@@ -103,6 +103,7 @@ struct PanelView: View {
             TextField("Type to filter", text: $model.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 17))
+                .padding(5)
                 .focused($filterFocused)
             Text(model.countLabel)
                 .font(.system(size: 13))
