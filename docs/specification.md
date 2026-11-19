@@ -68,9 +68,12 @@ without the mouse.
 - In memory, an item keeps only its plain text and file URLs. All other
   data is read from disk when the item is pasted.
 - Moving an item to the top rewrites only its manifest.
-- Clearing the history moves the whole `items` directory to
-  `items-archive` beside it, replacing the previous archive, so only
-  the last clear can be restored. Restoring moves the archived items
+- Clearing the history moves every item's directory into
+  `items-archive` beside `items`, adding to what was cleared before, so
+  clearing twice loses nothing. An archived item with the same id or
+  the same content as one cleared now gives way to the newer one. The
+  archive's date is that of the last clear. An item that cannot be
+  moved stays in the history. Restoring moves the archived items
   back, skipping any already in the history, orders everything by
   last-used time, applies the history size, and removes the archive.
 - Items are ordered by last-used time, newest first.
@@ -252,8 +255,8 @@ instead.
   or else the mouse pointer. Off by default.
 - **Images**: show the selected image large beside the panel. Off by
   default.
-- **Cleared history**: the size and date of the last cleared history,
-  with Restore, or 'None'.
+- **Cleared history**: the size of the cleared history and the date
+  of the last clear, with Restore, or 'None'.
 
 History size, shortcut, panel position and the panel options are
 stored in the app's preferences.

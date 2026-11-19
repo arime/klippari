@@ -103,7 +103,7 @@ import ClipboardCore
         let alert = NSAlert()
         alert.messageText = "Clear clipboard history?"
         alert.informativeText = "This clears \(count == 1 ? "1 item" : "all \(count) items"). "
-            + "Settings can restore them until the history is cleared again."
+            + "Settings can restore them."
         alert.addButton(withTitle: "Clear History")
         alert.addButton(withTitle: "Cancel")
         NSApp.activate(ignoringOtherApps: true)
@@ -121,7 +121,7 @@ import ClipboardCore
         model.noticeLink = nil
     }
 
-    /// Clears the history into the archive, replacing the last one.
+    /// Clears the history into the archive, adding to what is there.
     @discardableResult
     private func archiveHistory() -> Int {
         let count = store.archiveAll(now: Date())

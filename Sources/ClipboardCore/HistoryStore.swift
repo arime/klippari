@@ -1,7 +1,7 @@
 import Foundation
 import os
 
-/// The last cleared history, which can be restored.
+/// The cleared history, which can be restored.
 public struct ArchiveSummary: Equatable, Sendable {
     public var count: Int
     public var archivedAt: Date
@@ -17,7 +17,7 @@ public struct ArchiveSummary: Equatable, Sendable {
 /// large data stay on disk until an item is pasted.
 @MainActor public final class HistoryStore {
     private let storage: ItemStorage
-    /// Where clearing the history moves it, so the last clear can be
+    /// Where clearing the history moves it, so clearing can be
     /// undone: next to the storage, as '<storage folder>-archive'.
     public let archiveRoot: URL
     private static let logger = Logger(subsystem: "com.arime.Klippari", category: "store")
@@ -91,22 +91,45 @@ public struct ArchiveSummary: Equatable, Sendable {
         onChange?()
     }
 
-    /// Clears the history by moving it to the archive, replacing the
-    /// previous archive. Returns how many items were cleared; 0 when there
-    /// was nothing to clear or the move failed, and then nothing changes.
+    /// Clears the history by moving it to the archive, adding to what was
+    /// cleared before: an archived copy of something cleared again now
+    /// gives way to the newer one. The archive's date restarts. Returns
+    /// how many items were cleared. An item whose files could not be
+    /// moved stays in the history; 0 means nothing changed.
     @discardableResult
     public func archiveAll(now: Date) -> Int {
-        let count = items.count
-        guard count > 0 else { return 0 }
-        do {
-            try storage.archiveAll(to: archiveRoot, at: now)
-        } catch {
-            Self.logger.error("Could not archive history: \(error.localizedDescription, privacy: .public)")
-            return 0
+        guard !items.isEmpty else { return 0 }
+        let archive = ItemStorage(root: archiveRoot)
+        let earlier = archive.loadAll()
+        let (moved, left) = storage.archiveAll(to: archive, at: now)
+        if !left.isEmpty {
+            Self.logger.error("Could not archive \(left.count) items")
         }
-        items.removeAll()
+
+        let cleared = Set(items.filter { moved.contains($0.id) }.map(\.contentHash))
+        for old in earlier where cleared.contains(old.contentHash) && !moved.contains(old.id) {
+            archive.delete(id: old.id)
+            // Deleting touched the archive, and so its date.
+            try? FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: archiveRoot.path)
+        }
+        removeArchiveIfEmpty()
+
+        // Whatever is not left on disk is gone from the history, so the
+        // list never shows an item whose files have moved.
+        let before = items.count
+        items.removeAll { !left.contains($0.id) }
+        guard items.count != before else { return 0 }
         onChange?()
-        return count
+        return before - items.count
+    }
+
+    /// The archive folder is only kept while it holds something.
+    private func removeArchiveIfEmpty() {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: archiveRoot.path),
+              !names.contains(where: { UUID(uuidString: $0) != nil })
+        else { return }
+        try? fm.removeItem(at: archiveRoot)
     }
 
     /// The archived history, if there is one.
