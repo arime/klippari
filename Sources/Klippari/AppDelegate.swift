@@ -76,8 +76,14 @@ import os
         let folder = StorageLocation.defaultFolder
         do {
             try StorageLocation.prepare(folder)
-            let key = try KeychainKey.loadOrCreate()
-            return ItemStorage(root: StorageLocation.itemsRoot(in: folder), cipher: ItemCipher(key: key))
+            let items = StorageLocation.itemsRoot(in: folder)
+            // Never a new key over a history sealed with a missing one.
+            let key = try ItemCipher.key(
+                stored: KeychainKey.load(),
+                sealedHistoryIn: [items, StorageLocation.archiveRoot(forItems: items)],
+                create: KeychainKey.create
+            )
+            return ItemStorage(root: items, cipher: ItemCipher(key: key))
         } catch {
             Self.logger.error("History is not saved this run: \(String(describing: error), privacy: .public)")
             let root = FileManager.default.temporaryDirectory

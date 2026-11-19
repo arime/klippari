@@ -57,10 +57,11 @@ without the mouse.
   0600.
 - Every file is encrypted with AES-GCM, with a 256-bit key kept in the
   login keychain (service `com.arime.Klippari`), and bound to its item
-  and file name. Files that do not decrypt are treated as unreadable.
-  If the keychain refuses, the history is kept for that run only, in a
-  temporary folder with a key that never leaves memory, and the saved
-  history is left alone.
+  and file name. A new key is made only while neither `items.noindex`
+  nor the archive holds an encrypted item. If the key is missing while
+  one does, or the keychain refuses, the history is kept for that run
+  only, in a temporary folder with a key that never leaves memory, and
+  the saved history is left alone.
 - Spotlight and backups are kept out: the folder names end in
   `.noindex`, the Klippari folder holds a `.metadata_never_index` file
   and is excluded from backups.
@@ -80,8 +81,11 @@ without the mouse.
     from indices, never from the type string.
   - `thumb.png`: for images only, at most 56 pixels on the longer side.
 - An item is written to a temporary directory and renamed into place.
-  On start, directories that are incomplete or unreadable are removed
-  and the rest of the history loads.
+  On start, directories that are incomplete (no manifest, or a
+  manifest that opens but names data that is missing or damaged) are
+  removed and the rest of the history loads. An item whose manifest
+  does not decrypt with the key is never deleted: it is skipped, and
+  clearing the history leaves it where it is.
 - In memory, an item keeps only its plain text and file URLs. All other
   data is read from disk when the item is pasted.
 - Moving an item to the top rewrites only its manifest.

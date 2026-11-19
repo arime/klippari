@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 import ClipboardCore
@@ -84,12 +85,37 @@ func permissions(_ url: URL) -> Int? {
         }
     }
 
-    @Test func anotherKeyReadsNothingAndDropsTheItems() throws {
+    @Test func anotherKeyReadsNothingAndLeavesTheItems() throws {
         let root = temporaryRoot()
-        try ItemStorage(root: root, cipher: testCipher).save(makeItem(text("x")))
+        let owner = ItemStorage(root: root, cipher: testCipher)
+        try owner.save(makeItem(text("x")))
         let stranger = ItemStorage(root: root, cipher: .ephemeral())
         #expect(stranger.loadAll().isEmpty)
-        #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
+        // Nothing was deleted: with its own key back, the item loads.
+        #expect(owner.loadAll().map(\.content) == [text("x")])
+    }
+
+    @Test func anItemWithOurManifestButMissingDataIsRemoved() throws {
+        let root = temporaryRoot()
+        let storage = ItemStorage(root: root, cipher: testCipher)
+        let item = makeItem(text("x"))
+        try storage.save(item)
+        let directory = root.appendingPathComponent(item.id.uuidString)
+        try FileManager.default.removeItem(at: directory.appendingPathComponent("e0-t0.bin"))
+        #expect(storage.loadAll().isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: directory.path))
+    }
+
+    @MainActor @Test func clearingLeavesItemsSealedWithAnotherKeyWhereTheyAre() throws {
+        let root = temporaryRoot()
+        let foreign = makeItem(text("theirs"))
+        try ItemStorage(root: root, cipher: .ephemeral()).save(foreign)
+        let store = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
+        #expect(store.items.isEmpty)
+        store.add(text("ours"), sourceApp: nil, now: at(1))
+        #expect(store.archiveAll(now: at(2)) == 1)
+        #expect(store.archiveSummary?.count == 1)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: root.path) == [foreign.id.uuidString])
     }
 
     @Test func plainItemsAreSealedAndTheirPlainFilesGo() throws {
@@ -139,6 +165,54 @@ func permissions(_ url: URL) -> Int? {
         try FileManager.default.removeItem(at: root.appendingPathComponent(id.uuidString).appendingPathComponent("e0-t0.bin"))
         #expect(storage.sealPlainItems() == 0)
         #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
+    }
+}
+
+@Suite struct MissingKeyTests {
+    struct Unexpected: Error {}
+
+    @Test func theStoredKeyIsUsed() throws {
+        let root = temporaryRoot()
+        try ItemStorage(root: root, cipher: testCipher).save(makeItem(text("x")))
+        let stored = SymmetricKey(size: .bits256)
+        let key = try ItemCipher.key(stored: stored, sealedHistoryIn: [root]) { throw Unexpected() }
+        #expect(key == stored)
+    }
+
+    @Test func aNewKeyIsMadeWhenNothingIsSealed() throws {
+        let root = temporaryRoot()
+        let archive = StorageLocation.archiveRoot(forItems: root)
+        // History from before encryption does not need the key.
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try writePlainItem(in: root, text: "old")
+        let fresh = SymmetricKey(size: .bits256)
+        #expect(try ItemCipher.key(stored: nil, sealedHistoryIn: [root, archive]) { fresh } == fresh)
+    }
+
+    @Test func noNewKeyWhileSealedItemsExist() throws {
+        let root = temporaryRoot()
+        try ItemStorage(root: root, cipher: testCipher).save(makeItem(text("x")))
+        var made = false
+        #expect(throws: ItemCipher.MissingKey.self) {
+            try ItemCipher.key(stored: nil, sealedHistoryIn: [root]) {
+                made = true
+                return SymmetricKey(size: .bits256)
+            }
+        }
+        #expect(!made)
+    }
+
+    @MainActor @Test func noNewKeyWhileTheArchiveHoldsSealedItems() throws {
+        let root = temporaryRoot()
+        let store = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
+        store.add(text("x"), sourceApp: nil, now: at(1))
+        store.archiveAll(now: at(2))
+        let archive = store.archiveRoot
+        #expect(!ItemStorage.holdsSealedItems(root))
+        #expect(ItemStorage.holdsSealedItems(archive))
+        #expect(throws: ItemCipher.MissingKey.self) {
+            try ItemCipher.key(stored: nil, sealedHistoryIn: [root, archive]) { SymmetricKey(size: .bits256) }
+        }
     }
 }
 

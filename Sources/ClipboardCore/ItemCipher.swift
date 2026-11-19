@@ -15,6 +15,26 @@ public struct ItemCipher: Sendable {
         case sealFailed
     }
 
+    /// Thrown instead of making a new key while a history sealed with
+    /// the missing one is still on disk.
+    public struct MissingKey: Error, CustomStringConvertible {
+        public init() {}
+        public var description: String { "The key the saved history was encrypted with is missing" }
+    }
+
+    /// The key to open the history with: the stored one, or a new one
+    /// from `create` when there is none. A new key is only made while
+    /// none of `roots` holds sealed items. With some there, a new key
+    /// could not read them and they would look like damaged items, so
+    /// `MissingKey` is thrown and the history must be left alone.
+    public static func key(
+        stored: SymmetricKey?, sealedHistoryIn roots: [URL], create: () throws -> SymmetricKey
+    ) throws -> SymmetricKey {
+        if let stored { return stored }
+        guard !roots.contains(where: ItemStorage.holdsSealedItems) else { throw MissingKey() }
+        return try create()
+    }
+
     private static let magic = Data("KLP1".utf8)
     private let key: SymmetricKey
 
