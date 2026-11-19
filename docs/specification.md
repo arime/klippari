@@ -102,13 +102,14 @@ without the mouse.
   as an editor, counts as just the caret's line. When no text field can
   be read (no Accessibility permission, nothing focused, or an app that
   hides its fields), it goes next to the mouse pointer the same way.
-  An Accessibility call waits at most 0.2 seconds for the front app,
-  and the first one that times out ends the lookup, so a busy app does
-  not hold the panel up.
+  The whole lookup takes at most 0.2 seconds; past that, or when a call
+  times out, the panel goes next to the pointer, so a busy app does not
+  hold it up.
   Electron apps expose their fields only when asked
   (`AXManualAccessibility`). When one is frontmost and has not been
-  asked already, Klippari asks, looks again for up to 0.25 seconds, and
-  takes the request back, so the app is left as it was found.
+  asked already, Klippari asks, looks again within the same 0.2
+  seconds, and takes the request back, so the app is left as it was
+  found.
   Opened above the pointer, the card grows upward if the list grows
   while it is open. Where it is dragged to is then not remembered.
 - Each time it opens the list is scrolled so the selected row is in
