@@ -16,6 +16,8 @@ import os
     /// Set when the history could not be opened on disk and lives in a
     /// throwaway folder for this run instead.
     private var unsavedRoot: URL?
+    /// Why, for the menu and the panel to say.
+    private var unsaved: UnsavedHistory?
     private static let logger = Logger(subsystem: "com.arime.Klippari", category: "app")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -28,6 +30,7 @@ import os
         )
         // PanelModel takes over store.onChange; nothing else may set it.
         model = PanelModel(store: store)
+        model.warning = unsaved?.panelWarning
         panel = PanelController(model: model, storage: storage, settings: settings)
         panel.onPaste = { [weak self] item, plainText in
             self?.paste(item, plainText: plainText)
@@ -41,6 +44,7 @@ import os
 
         settingsWindow = SettingsWindowController(settings: settings)
         statusItem = StatusItemController(settings: settings)
+        statusItem.unsaved = unsaved
         statusItem.onOpenSettings = { [weak self] in self?.settingsWindow.show() }
         statusItem.onClearHistory = { [weak self] in self?.confirmClearHistory() }
         statusItem.onResetPanelPosition = { [weak self] in self?.settings.panelPlacement = nil }
@@ -71,12 +75,32 @@ import os
     /// The encrypted history in Application Support. When the folder or
     /// the keychain key cannot be had, the history is kept for this run
     /// only, in a temporary folder with a key that never leaves memory,
-    /// and the saved history is left untouched for a later launch.
+    /// and the saved history is left untouched for a later launch. The
+    /// menu and the panel then say that it is not being saved, and why.
     private func openStorage() -> ItemStorage {
+        do {
+            return try openSavedStorage()
+        } catch {
+            Self.logger.error("History is not saved this run: \(String(describing: error), privacy: .public)")
+            unsaved = error as? UnsavedHistory ?? .folder(String(describing: error))
+            let root = FileManager.default.temporaryDirectory
+                .appendingPathComponent("Klippari-unsaved-\(UUID().uuidString)")
+                .appendingPathComponent("items")
+            unsavedRoot = root
+            return ItemStorage(root: root, cipher: .ephemeral())
+        }
+    }
+
+    /// Throws an `UnsavedHistory` saying what stood in the way.
+    private func openSavedStorage() throws -> ItemStorage {
         let folder = StorageLocation.defaultFolder
         do {
             try StorageLocation.prepare(folder)
-            let items = StorageLocation.itemsRoot(in: folder)
+        } catch {
+            throw UnsavedHistory.folder(String(describing: error))
+        }
+        let items = StorageLocation.itemsRoot(in: folder)
+        do {
             // Never a new key over a history sealed with a missing one.
             let key = try ItemCipher.key(
                 stored: KeychainKey.load(),
@@ -84,13 +108,10 @@ import os
                 create: KeychainKey.create
             )
             return ItemStorage(root: items, cipher: ItemCipher(key: key))
+        } catch is ItemCipher.MissingKey {
+            throw UnsavedHistory.missingKey
         } catch {
-            Self.logger.error("History is not saved this run: \(String(describing: error), privacy: .public)")
-            let root = FileManager.default.temporaryDirectory
-                .appendingPathComponent("Klippari-unsaved-\(UUID().uuidString)")
-                .appendingPathComponent("items")
-            unsavedRoot = root
-            return ItemStorage(root: root, cipher: .ephemeral())
+            throw UnsavedHistory.keychain(String(describing: error))
         }
     }
 

@@ -6,6 +6,16 @@ import AppKit
     private let settings: Settings
     private let pauseItem = NSMenuItem(title: "Pause Capture", action: #selector(togglePause), keyEquivalent: "")
 
+    private let unsavedItem = NSMenuItem(title: "History isn't being saved", action: nil, keyEquivalent: "")
+    private let unsavedReasonItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let unsavedSeparator = NSMenuItem.separator()
+
+    /// Why the history is not being saved this run, or nil when it is.
+    /// The menu then says so at its top, in two disabled lines.
+    var unsaved: UnsavedHistory? {
+        didSet { refresh() }
+    }
+
     var onClearHistory: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onResetPanelPosition: (() -> Void)?
@@ -18,6 +28,11 @@ import AppKit
 
         let menu = NSMenu()
         menu.delegate = self
+        // Neither has an action, so the menu shows them disabled.
+        menu.addItem(unsavedItem)
+        unsavedReasonItem.indentationLevel = 1
+        menu.addItem(unsavedReasonItem)
+        menu.addItem(unsavedSeparator)
         pauseItem.target = self
         menu.addItem(pauseItem)
         menu.addItem(item("Clear History", #selector(clearHistory)))
@@ -56,6 +71,11 @@ import AppKit
 
     /// Dims the icon while capture is paused.
     func refresh() {
+        unsavedItem.isHidden = unsaved == nil
+        unsavedReasonItem.isHidden = unsaved == nil
+        unsavedSeparator.isHidden = unsaved == nil
+        unsavedReasonItem.title = unsaved?.menuReason ?? ""
+        unsavedReasonItem.toolTip = unsaved?.detail
         statusItem.button?.appearsDisabled = settings.isPaused
         pauseItem.title = settings.isPaused ? "Resume Capture" : "Pause Capture"
     }
