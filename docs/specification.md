@@ -100,7 +100,7 @@ without the mouse.
   as an editor, counts as just the caret's line. When no text field can
   be read (no Accessibility permission, nothing focused, or an app that
   hides its fields), it goes next to the mouse pointer the same way.
-  An Accessibility call waits at most 0.25 seconds for the front app,
+  An Accessibility call waits at most 0.2 seconds for the front app,
   and the first one that times out ends the lookup, so a busy app does
   not hold the panel up.
   Electron apps expose their fields only when asked
