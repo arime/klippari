@@ -68,6 +68,11 @@ without the mouse.
 - In memory, an item keeps only its plain text and file URLs. All other
   data is read from disk when the item is pasted.
 - Moving an item to the top rewrites only its manifest.
+- Clearing the history moves the whole `items` directory to
+  `items-archive` beside it, replacing the previous archive, so only
+  the last clear can be restored. Restoring moves the archived items
+  back, skipping any already in the history, orders everything by
+  last-used time, applies the history size, and removes the archive.
 - Items are ordered by last-used time, newest first.
 
 ## The panel
@@ -82,6 +87,19 @@ without the mouse.
   spot it is left in is remembered across restarts as a position
   relative to the screen, so it reopens in the same relative place on
   whichever screen is in use. The card is always kept fully on screen.
+- With the **Position** setting on, it opens next to the text field
+  being typed in instead, read through Accessibility when the shortcut
+  is pressed: centred on the field, 12 points above it when the card
+  fits there, otherwise 12 points below it, so it never covers the
+  field, and always fully on screen. A field over 200 points tall, such
+  as an editor, counts as just the caret's line. When no text field can
+  be read (no Accessibility permission, nothing focused, or an app that
+  hides its fields), it goes next to the mouse pointer the same way.
+  Electron apps expose their fields only when asked, so the first time
+  one is frontmost Klippari asks it to, which takes effect from the
+  next open.
+  Opened above the pointer, the card grows upward if the list grows
+  while it is open. Where it is dragged to is then not remembered.
 - Each time it opens the list is scrolled so the selected row is in
   view.
 - It closes when it loses focus.
@@ -96,9 +114,9 @@ Layout, top to bottom, in a card 640 points wide with 14-point corners:
 - The list: rows 44 points high, at most 9 visible (every row
   that Cmd+1 to Cmd+9 can paste), scrolling to keep
   the selection in view.
-- A strip of key hints: Return 'Paste', Shift+Return 'Paste as plain
-  text', Cmd+1–9 'Quick paste' on the left; Cmd+Backspace 'Delete' and
-  esc 'Close' on the right. A notice replaces the hints when there is
+- A strip of key hints, each kept on one line: Return 'Paste',
+  Shift+Return 'Plain text', Cmd+1–9 'Quick paste' on the left; Cmd+Backspace 'Delete',
+  followed by Shift 'all', and esc 'Close' on the right. A notice replaces the hints when there is
   something to say.
 
 Each row has four lanes:
@@ -116,12 +134,19 @@ Row content, first match wins:
 
 | Item | Title | Tag |
 | --- | --- | --- |
+| One image file with its own PNG data | 'Image' | '1280 × 720 · PNG' |
 | One or more files | File name, or 'N files' | 'file' |
 | Image data (PNG or TIFF) | 'Image' | '1280 × 720 · PNG' |
 | Text that also has RTF or HTML | First non-empty line | 'styled' |
 | Text that is a single http(s) URL | The URL | none |
 | Other text | First non-empty line | 'N lines' when more than one non-empty line |
 | Anything else | The type's readable name | none |
+
+The first row covers screenshot helpers such as clipaste, which offer
+an image to terminals as its PNG bytes plus a file URL and path for the
+same image saved to disk. A file copied in Finder carries its icon as
+TIFF, not PNG, so it stays a file. The file name of such an image still
+matches the filter.
 
 Ages read 'now' under a minute, then 'N min', 'N h', 'N d'.
 
@@ -139,14 +164,43 @@ that matches nothing it shows 'No matches'.
 | Cmd+1 to Cmd+9 | Paste that row of the visible list, as copied. |
 | Any typing | Edit the filter. |
 | Cmd+Backspace | Remove the selected item from the history. The selection moves to the next row, or the previous one at the end. |
+| Shift+Cmd+Backspace | Clear the whole history into the archive, without asking, since it can be restored. The notice says 'Cleared N items. Restore them in Settings.' |
 | Esc | Clear a non-empty filter; otherwise close the panel without pasting. |
 
 The filter matches case-insensitively against an item's text, its file
-names and its source app name. The first match becomes selected and
-rows are renumbered.
+names, its source app name and its kind: 'text', 'styled', 'link',
+'file' or 'image', and for an image its format, such as 'png'. The
+first match becomes selected and rows are renumbered.
 
 If something is copied while the panel is open, the list updates and
 the selection stays on the same item.
+
+With the **Mouse** setting on, moving the pointer over a row selects it,
+and a click pastes it as copied; Shift+click pastes it as plain text.
+Only a pointer that moves selects: a row that scrolls under a still
+pointer while moving with the keyboard, or the row under the pointer
+when the panel opens, does not take the selection. Selecting with the
+pointer never scrolls the list. With the setting off, rows ignore the
+mouse.
+
+With the **Images** setting on, whenever the selected row is an image,
+the image is shown large beside the card, so similar screenshots can
+be told apart while moving through the list with the keyboard. While
+the pointer is over another image row's thumbnail, that image is shown
+instead.
+
+- The preview never covers the card. It goes to the right of the card,
+  or to the left when that side has room for a larger preview, centred
+  on the highlighted row and following it as the selection moves or the
+  list scrolls, kept on screen. Only when neither side has room for
+  a useful preview does it go below or above the card.
+- It is at most 320 × 240 points, never enlarged past the image's own
+  size, and kept 8 points inside the screen's edges.
+- It appears at once. Previews of the image rows are made in the
+  background when the list changes and kept, up to 20; one not made yet
+  shows the stored thumbnail until it is ready.
+- It moves with the panel when the panel is dragged, takes no clicks,
+  and closes with the panel.
 
 ## Pasting
 
@@ -163,9 +217,10 @@ the selection stays on the same item.
   the top of the history.
 - Posting Cmd+V requires the Accessibility permission. Without it the
   item is still put on the clipboard, the panel stays open with the
-  notice 'Copied. Grant Accessibility in System Settings to paste
-  directly.', and the system permission prompt is shown once per
-  install.
+  notice 'Copied. Klippari needs Accessibility to paste directly.'
+  followed by the link 'Open Accessibility Settings', and the system
+  permission prompt is shown once per install. Clicking anywhere on the
+  notice opens System Settings › Privacy & Security › Accessibility.
 
 ## Menu bar
 
@@ -176,8 +231,8 @@ the selection stays on the same item.
   Position, Settings… (Cmd+,), Quit Klippari (Cmd+Q).
 - Reset Panel Position forgets where the panel was dragged to, so it
   opens in its default place again.
-- Clear History asks for confirmation, then removes every item from
-  memory and disk.
+- Clear History asks for confirmation, then clears the history into
+  the archive.
 
 ## Settings
 
@@ -191,9 +246,17 @@ the selection stays on the same item.
 - **Start at login**: on by default. The app registers itself once, on
   first launch, and only when running from `/Applications`. The toggle
   turns it off or on.
+- **Mouse**: point at a row to select it, click to paste it. Off by
+  default.
+- **Position**: open the panel next to the text field being typed in,
+  or else the mouse pointer. Off by default.
+- **Images**: show the selected image large beside the panel. Off by
+  default.
+- **Cleared history**: the size and date of the last cleared history,
+  with Restore, or 'None'.
 
-History size, shortcut and panel position are stored in the app's
-preferences.
+History size, shortcut, panel position and the panel options are
+stored in the app's preferences.
 
 ## App icon
 
