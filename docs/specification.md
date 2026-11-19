@@ -75,7 +75,9 @@ without the mouse.
   archive's date is that of the last clear. An item that cannot be
   moved stays in the history. Restoring moves the archived items
   back, skipping any already in the history, orders everything by
-  last-used time, applies the history size, and removes the archive.
+  last-used time and applies the history size. Only what came back
+  leaves the archive: an item that could not be moved stays there, and
+  the archive is removed once it is empty.
 - Items are ordered by last-used time, newest first.
 
 ## The panel
