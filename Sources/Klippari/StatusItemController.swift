@@ -8,6 +8,9 @@ import AppKit
 
     private let unsavedItem = NSMenuItem(title: "History isn't being saved", action: nil, keyEquivalent: "")
     private let unsavedReasonItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let resetSavedItem = NSMenuItem(
+        title: "Reset Saved History…", action: #selector(resetSavedHistory), keyEquivalent: ""
+    )
     private let unsavedSeparator = NSMenuItem.separator()
 
     /// Why the history is not being saved this run, or nil when it is.
@@ -16,6 +19,9 @@ import AppKit
         didSet { refresh() }
     }
 
+    /// Called for Reset Saved History…, which is offered only while the
+    /// saved history's key is missing.
+    var onResetSavedHistory: (() -> Void)?
     var onClearHistory: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onResetPanelPosition: (() -> Void)?
@@ -32,6 +38,8 @@ import AppKit
         menu.addItem(unsavedItem)
         unsavedReasonItem.indentationLevel = 1
         menu.addItem(unsavedReasonItem)
+        resetSavedItem.target = self
+        menu.addItem(resetSavedItem)
         menu.addItem(unsavedSeparator)
         pauseItem.target = self
         menu.addItem(pauseItem)
@@ -74,6 +82,11 @@ import AppKit
         unsavedItem.isHidden = unsaved == nil
         unsavedReasonItem.isHidden = unsaved == nil
         unsavedSeparator.isHidden = unsaved == nil
+        if case .missingKey = unsaved {
+            resetSavedItem.isHidden = false
+        } else {
+            resetSavedItem.isHidden = true
+        }
         unsavedReasonItem.title = unsaved?.menuReason ?? ""
         unsavedReasonItem.toolTip = unsaved?.detail
         statusItem.button?.appearsDisabled = settings.isPaused
@@ -92,6 +105,10 @@ import AppKit
 
     @objc private func togglePause() {
         settings.isPaused.toggle()
+    }
+
+    @objc private func resetSavedHistory() {
+        onResetSavedHistory?()
     }
 
     @objc private func clearHistory() {

@@ -127,6 +127,10 @@ Expected behaviour is defined in `specification.md`.
       there, the menu starts with 'History isn't being saved' and the
       reason, and the panel's footer says the same on every open.
       Copies made now are gone after quitting.
+- [ ] In that state, Reset Saved History… asks first, with Cancel as
+      the default. After Reset the old files are gone, the two menu
+      lines and the footer warning disappear, what was copied since
+      launch is still listed, and it is still there after a relaunch.
 - [ ] Lowering the history size trims the list at once.
 - [ ] Shortcut field: Return arms it, Esc cancels, Cmd+V and Cmd+Q are
       refused, and a failed registration keeps the previous shortcut.
