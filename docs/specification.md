@@ -65,6 +65,13 @@ without the mouse.
   the menu bar menu starts with the disabled lines 'History isn't being
   saved' and the reason, and the panel's footer shows the same in
   place of the key hints.
+- When the reason is a missing key, the menu also offers Reset Saved
+  History…. After a confirmation that says the old history cannot be
+  read and will be deleted, it deletes `items.noindex` and the archive,
+  makes a new key and goes on saving, without a restart; what was
+  copied during the run is saved under the new key.
+  If the key has come back by then, nothing is deleted and the saved
+  history opens with it.
 - Spotlight and backups are kept out: the folder names end in
   `.noindex`, the Klippari folder holds a `.metadata_never_index` file
   and is excluded from backups.
@@ -294,7 +301,8 @@ instead.
   Position, Settings… (Cmd+,), Quit Klippari (Cmd+Q). While the
   history is not being saved, two disabled lines come first: 'History
   isn't being saved' and why (the key is missing, the keychain did not
-  give it, or the folder could not be set up).
+  give it, or the folder could not be set up), followed by Reset Saved
+  History… when the key is missing.
 - Reset Panel Position forgets where the panel was dragged to, so it
   opens in its default place again.
 - Clear History asks for confirmation, then clears the history into

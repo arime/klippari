@@ -1,5 +1,6 @@
 import AppKit
 import ClipboardCore
+import CryptoKit
 import os
 
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -21,21 +22,7 @@ import os
     private static let logger = Logger(subsystem: "com.arime.Klippari", category: "app")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let storage = openStorage()
-        store = HistoryStore(storage: storage, limit: settings.historyLimit)
-        store.expireArchive(now: Date())
-        monitor = ClipboardMonitor(
-            pasteboard: SystemPasteboard(), store: store,
-            sourceApp: { NSWorkspace.shared.frontmostApplication?.localizedName }
-        )
-        // PanelModel takes over store.onChange; nothing else may set it.
-        model = PanelModel(store: store)
-        model.warning = unsaved?.panelWarning
-        panel = PanelController(model: model, storage: storage, settings: settings)
-        panel.onPaste = { [weak self] item, plainText in
-            self?.paste(item, plainText: plainText)
-        }
-        panel.onClearAll = { [weak self] in self?.clearFromPanel() }
+        open(openStorage())
         hotKey = HotKey(shortcut: settings.shortcut) { [weak self] in
             self?.hotKeyPressed()
         }
@@ -45,18 +32,16 @@ import os
         settingsWindow = SettingsWindowController(settings: settings)
         statusItem = StatusItemController(settings: settings)
         statusItem.unsaved = unsaved
+        statusItem.onResetSavedHistory = { [weak self] in self?.confirmResetSavedHistory() }
         statusItem.onOpenSettings = { [weak self] in self?.settingsWindow.show() }
         statusItem.onClearHistory = { [weak self] in self?.confirmClearHistory() }
         statusItem.onResetPanelPosition = { [weak self] in self?.settings.panelPlacement = nil }
         settings.onChange = { [weak self] in self?.applySettings() }
         settings.onRestoreArchive = { [weak self] in self?.restoreArchive() }
         settings.onDeleteArchive = { [weak self] in self?.deleteArchive() }
-        settings.archive = store.archiveSummary
 
         NSApp.mainMenu = makeMainMenu()
         LoginItem.registerOnFirstLaunch()
-        monitor.start()
-        scheduleExpiry()
         // Timers do not fire while the Mac sleeps, and may fire late
         // after: look again on waking.
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -64,6 +49,34 @@ import os
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.expire() }
         }
+    }
+
+    /// Builds the history, the monitor and the panel on `storage`. Called
+    /// at launch, and again when Reset Saved History moves the history
+    /// from this run's temporary folder to the saved one: `previous` is
+    /// then the history so far, which is taken over.
+    private func open(_ storage: ItemStorage, takingOver previous: HistoryStore? = nil) {
+        monitor?.stop()
+        panel?.hide()
+        store = HistoryStore(storage: storage, limit: settings.historyLimit)
+        if let previous { store.adopt(previous) }
+        store.expireArchive(now: Date())
+        monitor = ClipboardMonitor(
+            pasteboard: SystemPasteboard(), store: store,
+            sourceApp: { NSWorkspace.shared.frontmostApplication?.localizedName }
+        )
+        monitor.isPaused = settings.isPaused
+        // PanelModel takes over store.onChange; nothing else may set it.
+        model = PanelModel(store: store)
+        model.warning = unsaved?.panelWarning
+        panel = PanelController(model: model, storage: storage, settings: settings)
+        panel.onPaste = { [weak self] item, plainText in
+            self?.paste(item, plainText: plainText)
+        }
+        panel.onClearAll = { [weak self] in self?.clearFromPanel() }
+        settings.archive = store.archiveSummary
+        scheduleExpiry()
+        monitor.start()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -112,6 +125,64 @@ import os
             throw UnsavedHistory.missingKey
         } catch {
             throw UnsavedHistory.keychain(String(describing: error))
+        }
+    }
+
+    /// Reset Saved History…, offered in the menu while the saved history
+    /// cannot be read because its key is missing.
+    private func confirmResetSavedHistory() {
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Reset the saved history?"
+        alert.informativeText = "The saved history was encrypted with a key that is no longer in your "
+            + "keychain, so Klippari cannot read it. Resetting deletes it, and the cleared history with it, "
+            + "and starts saving again with a new key. This cannot be undone. "
+            + "What you have copied since Klippari started is kept."
+        alert.addButton(withTitle: "Reset Saved History")
+        alert.addButton(withTitle: "Cancel")
+        // Return cancels: deleting is never the default.
+        alert.buttons[0].hasDestructiveAction = true
+        alert.buttons[0].keyEquivalent = ""
+        alert.buttons[1].keyEquivalent = "\r"
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            try resetSavedHistory()
+        } catch {
+            Self.logger.error("Could not reset the saved history: \(String(describing: error), privacy: .public)")
+            let failure = NSAlert()
+            failure.messageText = "The saved history could not be reset"
+            failure.informativeText = "\(error)\n\nHistory is still not being saved."
+            failure.runModal()
+        }
+    }
+
+    /// Deletes the saved history that cannot be read, makes a new key and
+    /// moves this run's history into the saved folder, without a restart.
+    private func resetSavedHistory() throws {
+        let items = StorageLocation.itemsRoot(in: StorageLocation.defaultFolder)
+        let archive = StorageLocation.archiveRoot(forItems: items)
+        let key: SymmetricKey
+        if let stored = try KeychainKey.load() {
+            // The key is back (a keychain restored or unlocked since
+            // launch), so the saved history can be read after all, and
+            // nothing is deleted.
+            key = stored
+        } else {
+            let fm = FileManager.default
+            for folder in [items, archive] where fm.fileExists(atPath: folder.path) {
+                try fm.removeItem(at: folder)
+            }
+            key = try KeychainKey.create()
+        }
+
+        let temporary = unsavedRoot
+        unsaved = nil
+        unsavedRoot = nil
+        statusItem.unsaved = nil
+        open(ItemStorage(root: items, cipher: ItemCipher(key: key)), takingOver: store)
+        if let temporary {
+            try? FileManager.default.removeItem(at: temporary.deletingLastPathComponent())
         }
     }
 
