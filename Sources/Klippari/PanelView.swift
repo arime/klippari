@@ -133,10 +133,7 @@ struct PanelView: View {
                                     ? { inside in onHoverImage(row.id, inside) } : nil
                             )
                             .id(row.id)
-                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
-                                focus.rowFrames[row.id] = frame
-                            }
-                            .onDisappear { focus.rowFrames[row.id] = nil }
+                            .modifier(RowFrame(enabled: settings.magnifyImages, id: row.id, focus: focus))
                             .modifier(RowMouse(
                                 enabled: settings.mouseOnRows,
                                 hover: {
@@ -248,6 +245,27 @@ private struct KeyHint: View {
         }
         // A hint never wraps; the footer is laid out to fit them all.
         .fixedSize()
+    }
+}
+
+/// Reports where a row is, for the image preview to line up with it.
+/// Only with the Images setting on: frames change on every scroll step,
+/// and nothing else reads them.
+private struct RowFrame: ViewModifier {
+    let enabled: Bool
+    let id: UUID
+    let focus: PanelFocus
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+                    focus.rowFrames[id] = frame
+                }
+                .onDisappear { focus.rowFrames[id] = nil }
+        } else {
+            content
+        }
     }
 }
 
