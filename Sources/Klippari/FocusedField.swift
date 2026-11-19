@@ -9,7 +9,7 @@ import os
     /// panel goes next to the caret's line instead of the whole field.
     private static let maxFieldHeight: CGFloat = 200
     /// The longest one Accessibility call may wait for the front app.
-    private static let messagingTimeout: Float = 0.25
+    private static let messagingTimeout: Float = 0.2
     /// How long an Electron app gets to show its text fields after
     /// being asked to.
     private static let exposureBudget: TimeInterval = 0.25
