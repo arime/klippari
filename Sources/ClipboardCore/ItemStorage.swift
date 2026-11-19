@@ -6,6 +6,9 @@ import Foundation
 ///     <root>/<uuid>/e<entry>-t<type>.bin   raw bytes of one pasteboard type
 ///     <root>/<uuid>/thumb.png              only for images
 ///
+/// Every file is sealed with `cipher`; nothing is written in plain form.
+/// Directories are 0700 and files 0600.
+///
 /// Data file names come from indices, never from the type string, because
 /// type identifiers are arbitrary text chosen by other apps.
 public struct ItemStorage: Sendable {
@@ -13,9 +16,11 @@ public struct ItemStorage: Sendable {
         /// A lightened item was passed where full content is needed.
         case incompleteContent
         case missingItem
+        case writeFailed(String)
     }
 
     public let root: URL
+    let cipher: ItemCipher
 
     private struct Manifest: Codable {
         struct TypeRecord: Codable {
@@ -37,14 +42,9 @@ public struct ItemStorage: Sendable {
     private static let thumbnailName = "thumb.png"
     private static let temporaryPrefix = ".tmp-"
 
-    public static var defaultRoot: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Klippari")
-            .appendingPathComponent("items")
-    }
-
-    public init(root: URL) {
+    public init(root: URL, cipher: ItemCipher) {
         self.root = root
+        self.cipher = cipher
         let fm = FileManager.default
         try? fm.createDirectory(
             at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
@@ -56,8 +56,28 @@ public struct ItemStorage: Sendable {
         root.appendingPathComponent(id.uuidString)
     }
 
-    public func thumbnailURL(for id: UUID) -> URL {
-        directory(for: id).appendingPathComponent(Self.thumbnailName)
+    /// What a file is bound to when sealed: its item and its name.
+    private static func context(_ id: UUID, _ file: String) -> String {
+        "\(id.uuidString)/\(file)"
+    }
+
+    /// Seals `data` and writes it as a new 0600 file.
+    private func writeSealed(_ data: Data, to url: URL, id: UUID) throws {
+        let sealed = try cipher.seal(data, context: Self.context(id, url.lastPathComponent))
+        let fm = FileManager.default
+        try? fm.removeItem(at: url)
+        guard fm.createFile(atPath: url.path, contents: sealed, attributes: [.posixPermissions: 0o600]) else {
+            throw StorageError.writeFailed(url.lastPathComponent)
+        }
+    }
+
+    private func readSealed(_ url: URL, id: UUID) throws -> Data {
+        try cipher.open(Data(contentsOf: url), context: Self.context(id, url.lastPathComponent))
+    }
+
+    /// The item's thumbnail PNG, decrypted; nil when it has none.
+    public func thumbnail(for id: UUID) -> Data? {
+        try? readSealed(directory(for: id).appendingPathComponent(Self.thumbnailName), id: id)
     }
 
     /// Writes a new item with its full content. The item is built in a
@@ -68,7 +88,7 @@ public struct ItemStorage: Sendable {
         let fm = FileManager.default
         let temporary = root.appendingPathComponent(Self.temporaryPrefix + item.id.uuidString)
         try? fm.removeItem(at: temporary)
-        try fm.createDirectory(at: temporary, withIntermediateDirectories: true)
+        try fm.createDirectory(at: temporary, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
 
         do {
             var records: [[Manifest.TypeRecord]] = []
@@ -77,26 +97,30 @@ public struct ItemStorage: Sendable {
                 for (typeIndex, typed) in entry.types.enumerated() {
                     guard let data = typed.data else { continue }
                     let file = "e\(entryIndex)-t\(typeIndex).bin"
-                    try data.write(to: temporary.appendingPathComponent(file))
+                    try writeSealed(data, to: temporary.appendingPathComponent(file), id: item.id)
                     entryRecords.append(Manifest.TypeRecord(type: typed.type, file: file))
                 }
                 records.append(entryRecords)
             }
             if item.imageInfo != nil, let thumbnail = ImageInfo.thumbnailPNG(item.content) {
-                try thumbnail.write(to: temporary.appendingPathComponent(Self.thumbnailName))
+                try writeSealed(thumbnail, to: temporary.appendingPathComponent(Self.thumbnailName), id: item.id)
             }
             let manifest = Manifest(
                 id: item.id, capturedAt: item.capturedAt, lastUsedAt: item.lastUsedAt,
                 sourceApp: item.sourceApp, imageInfo: item.imageInfo,
                 contentHash: item.contentHash, entries: records
             )
-            try JSONEncoder().encode(manifest).write(to: temporary.appendingPathComponent(Self.manifestName))
+            try writeSealed(
+                JSONEncoder().encode(manifest), to: temporary.appendingPathComponent(Self.manifestName), id: item.id
+            )
 
             let destination = directory(for: item.id)
             if fm.fileExists(atPath: destination.path) {
                 // Swap in one step, so an interruption never leaves the
                 // item with neither the old nor the new directory.
-                _ = try fm.replaceItemAt(destination, withItemAt: temporary)
+                // The swapped-in directory takes on the old one's mode.
+                let swapped = try fm.replaceItemAt(destination, withItemAt: temporary) ?? destination
+                try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: swapped.path)
             } else {
                 try fm.moveItem(at: temporary, to: destination)
             }
@@ -109,15 +133,26 @@ public struct ItemStorage: Sendable {
     /// Records a change to an item's metadata (its last-used time) without
     /// touching its data files, which can be many megabytes.
     public func updateManifest(_ item: ClipItem) throws {
-        let url = directory(for: item.id).appendingPathComponent(Self.manifestName)
-        guard let data = try? Data(contentsOf: url),
-              var manifest = try? JSONDecoder().decode(Manifest.self, from: data)
-        else { throw StorageError.missingItem }
+        let directory = directory(for: item.id)
+        guard var manifest = manifest(in: directory, id: item.id) else { throw StorageError.missingItem }
         manifest.capturedAt = item.capturedAt
         manifest.lastUsedAt = item.lastUsedAt
         manifest.sourceApp = item.sourceApp
         manifest.contentHash = item.contentHash
-        try JSONEncoder().encode(manifest).write(to: url, options: .atomic)
+
+        // Write beside it and rename over it, so the manifest is never
+        // half written.
+        let url = directory.appendingPathComponent(Self.manifestName)
+        let staged = directory.appendingPathComponent(Self.temporaryPrefix + Self.manifestName)
+        let sealed = try cipher.seal(JSONEncoder().encode(manifest), context: Self.context(item.id, Self.manifestName))
+        try? FileManager.default.removeItem(at: staged)
+        guard FileManager.default.createFile(
+            atPath: staged.path, contents: sealed, attributes: [.posixPermissions: 0o600]
+        ) else { throw StorageError.writeFailed(Self.manifestName) }
+        guard rename(staged.path, url.path) == 0 else {
+            try? FileManager.default.removeItem(at: staged)
+            throw StorageError.writeFailed(Self.manifestName)
+        }
     }
 
     public func delete(id: UUID) {
@@ -153,9 +188,43 @@ public struct ItemStorage: Sendable {
         try FileManager.default.moveItem(at: directory(for: id), to: other.directory(for: id))
     }
 
+    /// Encrypts items written before the history was encrypted: each one
+    /// is read in plain form, saved again sealed (which replaces its
+    /// directory) and so loses its plain files. Items that cannot be read
+    /// whole are removed. An item that fails to save (a full disk) is
+    /// left as it was, to be tried again on the next launch. Returns how
+    /// many items were encrypted.
+    @discardableResult
+    public func sealPlainItems() -> Int {
+        let fm = FileManager.default
+        var sealed = 0
+        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] {
+            guard let id = UUID(uuidString: name) else { continue }
+            let url = root.appendingPathComponent(name)
+            guard let raw = try? Data(contentsOf: url.appendingPathComponent(Self.manifestName)),
+                  !ItemCipher.isSealed(raw)
+            else { continue }
+            guard let manifest = try? JSONDecoder().decode(Manifest.self, from: raw), manifest.id == id,
+                  let full = content(of: manifest, in: url, full: true, plain: true), full.isComplete
+            else {
+                try? fm.removeItem(at: url)
+                continue
+            }
+            let item = ClipItem(
+                id: id, capturedAt: manifest.capturedAt, lastUsedAt: manifest.lastUsedAt,
+                sourceApp: manifest.sourceApp, content: full, imageInfo: manifest.imageInfo,
+                contentHash: manifest.contentHash
+            )
+            if (try? save(item)) != nil { sealed += 1 }
+        }
+        return sealed
+    }
+
     /// Every item, newest `lastUsedAt` first, with lightened content: only
     /// text and file URL bytes are read. Directories that are not complete
-    /// (interrupted writes, missing data files) are removed.
+    /// (interrupted writes, missing data files) or cannot be decrypted are
+    /// removed. Items still in plain form, which `sealPlainItems` could
+    /// not encrypt yet, are skipped and kept for it to retry.
     public func loadAll() -> [ClipItem] {
         let fm = FileManager.default
         var items: [ClipItem] = []
@@ -165,8 +234,10 @@ public struct ItemStorage: Sendable {
             guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
                 continue
             }
-            if let item = loadItem(url), item.id.uuidString == name {
+            if let id = UUID(uuidString: name), let item = loadItem(url, id: id) {
                 items.append(item)
+            } else if isPlain(url) {
+                continue
             } else {
                 try? fm.removeItem(at: url)
             }
@@ -174,22 +245,32 @@ public struct ItemStorage: Sendable {
         return items.sorted { $0.lastUsedAt > $1.lastUsedAt }
     }
 
+    private func isPlain(_ directory: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: directory.appendingPathComponent(Self.manifestName)) else {
+            return false
+        }
+        defer { try? handle.close() }
+        let head = (try? handle.read(upToCount: 4)) ?? Data()
+        return !head.isEmpty && !ItemCipher.isSealed(head)
+    }
+
     /// The item's full content, for pasting. Nil when it cannot all be read.
     public func loadContent(id: UUID) -> ClipContent? {
         let directory = directory(for: id)
-        guard let manifest = manifest(in: directory) else { return nil }
+        guard let manifest = manifest(in: directory, id: id) else { return nil }
         return content(of: manifest, in: directory, full: true)
     }
 
-    private func manifest(in directory: URL) -> Manifest? {
-        guard let data = try? Data(contentsOf: directory.appendingPathComponent(Self.manifestName)) else {
-            return nil
-        }
-        return try? JSONDecoder().decode(Manifest.self, from: data)
+    private func manifest(in directory: URL, id: UUID) -> Manifest? {
+        guard let data = try? readSealed(directory.appendingPathComponent(Self.manifestName), id: id),
+              let manifest = try? JSONDecoder().decode(Manifest.self, from: data),
+              manifest.id == id
+        else { return nil }
+        return manifest
     }
 
-    private func loadItem(_ directory: URL) -> ClipItem? {
-        guard let manifest = manifest(in: directory),
+    private func loadItem(_ directory: URL, id: UUID) -> ClipItem? {
+        guard let manifest = manifest(in: directory, id: id),
               let light = content(of: manifest, in: directory, full: false)
         else { return nil }
 
@@ -209,7 +290,8 @@ public struct ItemStorage: Sendable {
 
     /// With `full` false, bytes are read only for the types kept in
     /// memory; the other data files are just checked for existence.
-    private func content(of manifest: Manifest, in directory: URL, full: Bool) -> ClipContent? {
+    /// `plain` reads files written before encryption.
+    private func content(of manifest: Manifest, in directory: URL, full: Bool, plain: Bool = false) -> ClipContent? {
         let fm = FileManager.default
         var entries: [PasteboardEntry] = []
         for records in manifest.entries {
@@ -219,7 +301,8 @@ public struct ItemStorage: Sendable {
                 guard record.file == (record.file as NSString).lastPathComponent else { return nil }
                 let url = directory.appendingPathComponent(record.file)
                 if full || TypeName.keptInMemory.contains(record.type) {
-                    guard let data = try? Data(contentsOf: url) else { return nil }
+                    let data = plain ? try? Data(contentsOf: url) : try? readSealed(url, id: manifest.id)
+                    guard let data else { return nil }
                     types.append(TypedData(type: record.type, data: data))
                 } else {
                     guard fm.fileExists(atPath: url.path) else { return nil }

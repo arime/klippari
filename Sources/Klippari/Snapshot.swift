@@ -17,7 +17,7 @@ import SwiftUI
 
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("Klippari-snapshot-\(UUID().uuidString)")
-        let storage = ItemStorage(root: root)
+        let storage = ItemStorage(root: root, cipher: .ephemeral())
         let store = HistoryStore(storage: storage)
         let now = Date()
         for sample in samples().reversed() {

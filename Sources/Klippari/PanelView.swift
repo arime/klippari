@@ -39,6 +39,24 @@ enum PanelMetrics {
     }
 }
 
+/// Decrypted row thumbnails, so a redraw does not decrypt them again.
+/// An item's thumbnail never changes, so entries never go stale; the
+/// oldest are dropped past `limit`.
+@MainActor final class ThumbnailCache {
+    private var images: [UUID: NSImage] = [:]
+    private var order: [UUID] = []
+    private let limit = 100
+
+    func image(for id: UUID, in storage: ItemStorage) -> NSImage? {
+        if let image = images[id] { return image }
+        guard let image = storage.thumbnail(for: id).flatMap(NSImage.init(data:)) else { return nil }
+        images[id] = image
+        order.append(id)
+        if order.count > limit { images[order.removeFirst()] = nil }
+        return image
+    }
+}
+
 /// Behind-window blur, which SwiftUI materials cannot do in a
 /// transparent window.
 private struct PanelBackground: NSViewRepresentable {
@@ -66,6 +84,7 @@ struct PanelView: View {
     /// while the Images setting is on.
     var onHoverImage: (UUID, _ inside: Bool) -> Void = { _, _ in }
     @FocusState private var filterFocused: Bool
+    @State private var thumbnails = ThumbnailCache()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -128,7 +147,7 @@ struct PanelView: View {
                         ForEach(model.rows) { row in
                             RowView(
                                 row: row, isSelected: row.id == model.selectedID,
-                                appWidth: appWidth, thumbnailURL: storage.thumbnailURL(for: row.id),
+                                appWidth: appWidth, thumbnail: { thumbnails.image(for: row.id, in: storage) },
                                 onHoverThumbnail: settings.magnifyImages
                                     ? { inside in onHoverImage(row.id, inside) } : nil
                             )
@@ -295,7 +314,8 @@ private struct RowView: View {
     let row: PanelModel.Row
     let isSelected: Bool
     let appWidth: CGFloat
-    let thumbnailURL: URL
+    /// The item's thumbnail; only called for image rows.
+    let thumbnail: () -> NSImage?
     /// Set when hovering an image's thumbnail should enlarge it.
     var onHoverThumbnail: ((Bool) -> Void)?
 
@@ -349,7 +369,7 @@ private struct RowView: View {
     }
 
     @ViewBuilder private var icon: some View {
-        if row.presentation.kind == .image, let image = NSImage(contentsOf: thumbnailURL) {
+        if row.presentation.kind == .image, let image = thumbnail() {
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fill)

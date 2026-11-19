@@ -19,6 +19,10 @@ func makePNG(width: Int, height: Int) -> Data {
     return data as Data
 }
 
+/// One key for every test, so a storage reopened at the same root reads
+/// what an earlier one wrote.
+let testCipher = ItemCipher.ephemeral()
+
 func temporaryRoot() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("ClipboardCoreTests-\(UUID().uuidString)")
@@ -47,7 +51,7 @@ func lightened(_ item: ClipItem) -> ClipItem {
 
 @Suite struct ItemStorageTests {
     @Test func roundTripsMultiEntryContent() throws {
-        let storage = ItemStorage(root: temporaryRoot())
+        let storage = ItemStorage(root: temporaryRoot(), cipher: testCipher)
         let item = makeItem(ClipContent(entries: [
             PasteboardEntry(types: [typed(TypeName.plainText, "hello"), typed(TypeName.rtf, "{\\rtf1 hello}")]),
             PasteboardEntry(types: [typed(TypeName.fileURL, "file:///tmp/a.pdf"), typed(TypeName.plainText, "a.pdf")]),
@@ -58,7 +62,7 @@ func lightened(_ item: ClipItem) -> ClipItem {
     }
 
     @Test func roundTripsNilSourceApp() throws {
-        let storage = ItemStorage(root: temporaryRoot())
+        let storage = ItemStorage(root: temporaryRoot(), cipher: testCipher)
         let item = makeItem(content(typed(TypeName.plainText, "x")), sourceApp: nil)
         try storage.save(item)
         #expect(storage.loadAll() == [item])
@@ -66,7 +70,7 @@ func lightened(_ item: ClipItem) -> ClipItem {
 
     @Test func roundTripsUnsafeTypeName() throws {
         let root = temporaryRoot()
-        let storage = ItemStorage(root: root)
+        let storage = ItemStorage(root: root, cipher: testCipher)
         let item = makeItem(content(typed("text/html; charset=utf-8", "<b>x</b>"), typed("../evil", "y")))
         try storage.save(item)
         #expect(storage.loadContent(id: item.id) == item.content)
@@ -79,7 +83,7 @@ func lightened(_ item: ClipItem) -> ClipItem {
 
     @Test func loadSkipsAndRemovesBrokenItems() throws {
         let root = temporaryRoot()
-        let storage = ItemStorage(root: root)
+        let storage = ItemStorage(root: root, cipher: testCipher)
         let good = makeItem(content(typed(TypeName.plainText, "good")))
         try storage.save(good)
 
@@ -100,7 +104,7 @@ func lightened(_ item: ClipItem) -> ClipItem {
     }
 
     @Test func loadOrdersByLastUsed() throws {
-        let storage = ItemStorage(root: temporaryRoot())
+        let storage = ItemStorage(root: temporaryRoot(), cipher: testCipher)
         let old = makeItem(content(typed(TypeName.plainText, "old")), lastUsed: 1)
         let newest = makeItem(content(typed(TypeName.plainText, "newest")), lastUsed: 3)
         let middle = makeItem(content(typed(TypeName.plainText, "middle")), lastUsed: 2)
@@ -109,7 +113,7 @@ func lightened(_ item: ClipItem) -> ClipItem {
     }
 
     @Test func saveReplacesExistingItem() throws {
-        let storage = ItemStorage(root: temporaryRoot())
+        let storage = ItemStorage(root: temporaryRoot(), cipher: testCipher)
         var item = makeItem(content(typed(TypeName.plainText, "x")))
         try storage.save(item)
         item.lastUsedAt = Date(timeIntervalSince1970: 5000)
@@ -119,7 +123,7 @@ func lightened(_ item: ClipItem) -> ClipItem {
 
     @Test func deleteRemovesDirectory() throws {
         let root = temporaryRoot()
-        let storage = ItemStorage(root: root)
+        let storage = ItemStorage(root: root, cipher: testCipher)
         let item = makeItem(content(typed(TypeName.plainText, "x")))
         try storage.save(item)
         storage.delete(id: item.id)
@@ -128,17 +132,17 @@ func lightened(_ item: ClipItem) -> ClipItem {
 
     @Test func rootIsPrivate() throws {
         let root = temporaryRoot()
-        _ = ItemStorage(root: root)
+        _ = ItemStorage(root: root, cipher: testCipher)
         let attributes = try FileManager.default.attributesOfItem(atPath: root.path)
         #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700)
     }
 
     @Test func saveWritesThumbnail() throws {
-        let storage = ItemStorage(root: temporaryRoot())
+        let storage = ItemStorage(root: temporaryRoot(), cipher: testCipher)
         let png = content(TypedData(type: TypeName.png, data: makePNG(width: 200, height: 100)))
         let item = makeItem(png, imageInfo: ImageInfo.inspect(png))
         try storage.save(item)
-        let thumb = try Data(contentsOf: storage.thumbnailURL(for: item.id))
+        let thumb = try #require(storage.thumbnail(for: item.id))
         let info = ImageInfo.inspect(content(TypedData(type: TypeName.png, data: thumb)))
         #expect(info?.width == 56)
         #expect(info?.height == 28)

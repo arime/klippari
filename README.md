@@ -63,7 +63,7 @@ The menu bar icon has:
 
 - **Pause/Resume Capture**: stop and restart recording.
 - **Clear History**: clear every item, after a confirmation. Settings
-  can restore what was cleared for 24 hours.
+  can restore what was cleared.
 - **Reset Panel Position**: put the panel back in the middle.
 - **Settings…**: history size (5 to 500 items), the shortcut, start at
   login, and three panel options, all off by default: **Mouse** (point
@@ -151,15 +151,20 @@ Reading the clipboard in the background needs no permission.
 
 ## What is stored, and where
 
-History is kept in `~/Library/Application Support/Klippari/items`, one
-folder per item, readable only by you. Settings are in the preferences
-of `com.arime.Klippari`. Clearing the history moves it to a folder
-for that clear in `items-archive` next to it, beside what was cleared
-before, along with any item that could not be saved when it was copied. Settings
-can restore or delete it. A restore brings back only as many items as
-the history size has room for, newest first, and leaves the rest to
-restore later. Each clear is deleted on its own 24 hours after it was
-made, and the oldest go sooner if the cleared history passes 1 GB.
+History is kept in `~/Library/Application Support/Klippari/items.noindex`,
+one folder per item, readable only by you and encrypted with a key kept
+in your login keychain. Other apps that ask the keychain for that key
+make macOS ask you first; deny them. Spotlight and backups skip the
+folder. Settings are in the preferences of `com.arime.Klippari`.
+
+Clearing the history moves it to a folder for that clear in
+`items-archive.noindex` next to it, beside what was cleared before,
+along with any item that could not be saved when it was copied.
+Settings can restore or delete it. A restore brings back only as many
+items as the history size has room for, newest first, and leaves the
+rest to restore later. Each clear is deleted on its own 24 hours after
+it was made, and the oldest go sooner if the cleared history passes
+1 GB.
 
 ## Icon and screenshots
 

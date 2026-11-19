@@ -114,7 +114,14 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Pause stops capture, and resume does not record what was copied
       while paused.
 - [ ] Clear History asks first, then empties the panel and the storage
-      folder, and Settings offers to restore what was cleared.
+      folder, and Settings offers to restore or delete what was
+      cleared.
+- [ ] After upgrading from 1.0, the history is still there, the old
+      `items` folder is gone, every file in `items.noindex` starts with
+      `KLP1`, and `mdfind -onlyin` on the Klippari folder finds
+      nothing.
+- [ ] Keychain Access shows 'Klippari history key'; another app asking
+      for it gets a macOS prompt.
 - [ ] Lowering the history size trims the list at once.
 - [ ] Shortcut field: Return arms it, Esc cancels, Cmd+V and Cmd+Q are
       refused, and a failed registration keeps the previous shortcut.

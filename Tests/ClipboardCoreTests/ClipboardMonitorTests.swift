@@ -25,7 +25,7 @@ import ClipboardCore
 
 @MainActor @Suite struct ClipboardMonitorTests {
     let pasteboard = FakePasteboard()
-    let store = HistoryStore(storage: ItemStorage(root: temporaryRoot()))
+    let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
 
     func makeMonitor(sourceApp: String? = "Notes") -> ClipboardMonitor {
         ClipboardMonitor(pasteboard: pasteboard, store: store, sourceApp: { sourceApp }, now: { at(0) })
