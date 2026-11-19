@@ -8,6 +8,8 @@ import SwiftUI
 /// Adding `settings` renders the settings window's content instead, and
 /// `archive` gives it a cleared history to show, and `full` adds the
 /// note a restore leaves when the history had no room for everything.
+/// `unsaved` renders the panel as it is while the history is not being
+/// saved.
 @MainActor enum Snapshot {
     static func runIfRequested() {
         let arguments = CommandLine.arguments
@@ -25,6 +27,9 @@ import SwiftUI
         }
         let model = PanelModel(store: store, now: { now })
         model.open()
+        if arguments.contains("unsaved") {
+            model.warning = UnsavedHistory.missingKey.panelWarning
+        }
         if let query = arguments.firstIndex(of: "--query"), query + 1 < arguments.count {
             model.query = arguments[query + 1]
         }

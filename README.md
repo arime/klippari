@@ -154,7 +154,9 @@ Reading the clipboard in the background needs no permission.
 History is kept in `~/Library/Application Support/Klippari/items.noindex`,
 one folder per item, readable only by you and encrypted with a key kept
 in your login keychain. Other apps that ask the keychain for that key
-make macOS ask you first; deny them. Spotlight and backups skip the
+make macOS ask you first; deny them. If the key cannot be had, the
+saved history is left as it is, and the menu and the panel say that
+history isn't being saved until it can. Spotlight and backups skip the
 folder. Settings are in the preferences of `com.arime.Klippari`.
 
 Clearing the history moves it to a folder for that clear in
