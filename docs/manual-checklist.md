@@ -21,7 +21,8 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Arrows, Ctrl+N / Ctrl+P and repeated Shift+Cmd+V move the
       selection.
 - [ ] Typing filters; Esc clears the filter, then closes.
-- [ ] Typing 'image' lists only images, and 'link' only links.
+- [ ] Typing 'image' or 'png' lists images; 'text' and 'file' match
+      only items that contain those words.
 - [ ] Cmd+Backspace deletes the selected row.
 - [ ] Shift+Cmd+Backspace clears every row at once and the notice says
       how many; Settings then shows them under Cleared history, and

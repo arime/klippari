@@ -12,7 +12,8 @@ public struct RowPresentation: Equatable, Sendable {
     public var title: String
     /// Greyed suffix after the title.
     public var tag: String?
-    /// Lowercased text, file names, kind of item and source app.
+    /// Lowercased text, file names and source app; for an image, also
+    /// 'image' and its format.
     public var searchText: String
 
     public init(_ item: ClipItem) {
@@ -60,23 +61,15 @@ public struct RowPresentation: Equatable, Sendable {
             tag = nil
         }
 
-        searchParts.append(contentsOf: Self.kindWords(kind, imageInfo: item.imageInfo))
+        // An image has no text of its own, so without these words it
+        // could only be found by its source app. Other kinds get none:
+        // 'text' or 'file' would match nearly every item.
+        if kind == .image {
+            searchParts.append("image")
+            if let format = item.imageInfo?.format { searchParts.append(format) }
+        }
         if let app = item.sourceApp { searchParts.append(app) }
         searchText = searchParts.joined(separator: "\n").lowercased()
-    }
-
-    /// Words that find an item by its kind, so that typing 'image' or
-    /// 'link' lists those. An image has no text of its own, so without
-    /// these it could only be found by its source app.
-    private static func kindWords(_ kind: ItemKind, imageInfo: ImageInfo?) -> [String] {
-        switch kind {
-        case .text: ["text"]
-        case .styledText: ["styled", "text"]
-        case .link: ["link"]
-        case .file: ["file"]
-        case .image: ["image", imageInfo?.format ?? ""]
-        case .other: []
-        }
     }
 
     /// True for a single image file that comes with its own PNG bytes, as
