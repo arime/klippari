@@ -8,36 +8,71 @@ import os
     /// A text field taller than this is treated as an editor, and the
     /// panel goes next to the caret's line instead of the whole field.
     private static let maxFieldHeight: CGFloat = 200
-    /// Electron apps already asked to expose their text fields.
-    private static var enabledApps: Set<pid_t> = []
+    /// The longest one Accessibility call may wait for the front app.
+    private static let messagingTimeout: Float = 0.25
+    /// How long an Electron app gets to show its text fields after
+    /// being asked to.
+    private static let exposureBudget: TimeInterval = 0.25
+    private static let manualAccessibility = "AXManualAccessibility" as CFString
+    /// Set when a call timed out. The rest of the lookup is then skipped,
+    /// so a busy app holds up opening the panel for one timeout, not one
+    /// per attribute.
+    private static var timedOut = false
     /// What each lookup found, at debug level, for apps where the panel
     /// lands in the wrong place: `log show --debug --predicate
     /// 'subsystem == "com.arime.Klippari" && category == "position"'`.
     private static let logger = Logger(subsystem: "com.arime.Klippari", category: "position")
 
+    private enum Lookup {
+        /// A text field has focus; nil when its frame cannot be used.
+        case text(CGRect?)
+        case notText
+    }
+
     /// The rectangle, in screen coordinates (origin bottom left), to open
     /// the panel next to: the focused text field when it is a small one,
     /// or else the caret's line. Nil when neither can be read: without
-    /// the Accessibility permission, with no text field focused, or in an
-    /// app that does not expose them.
+    /// the Accessibility permission, with no text field focused, in an
+    /// app that does not expose them, or when the app is too busy to
+    /// answer in time.
     static func anchorFrame() -> CGRect? {
-        let app = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
+        let front = NSWorkspace.shared.frontmostApplication
+        let app = front?.localizedName ?? "?"
         guard AXIsProcessTrusted() else {
             logger.debug("\(app, privacy: .public): no Accessibility permission, using the pointer")
             return nil
         }
+        timedOut = false
         let system = AXUIElementCreateSystemWide()
         // Never hold up opening the panel for a slow app.
-        AXUIElementSetMessagingTimeout(system, 0.15)
+        AXUIElementSetMessagingTimeout(system, messagingTimeout)
 
+        if case .text(let frame) = lookUp(system, app: app) { return frame }
+        guard !timedOut, let front, let element = electronAppToExpose(front) else { return nil }
+
+        // Electron apps, such as Slack, Discord or Claude, show their
+        // text fields to Accessibility only after being asked to. Ask,
+        // look again while the app builds them, and take the request
+        // back, so the app is left as it was found.
+        AXUIElementSetAttributeValue(element, manualAccessibility, kCFBooleanTrue)
+        defer { AXUIElementSetAttributeValue(element, manualAccessibility, kCFBooleanFalse) }
+        let deadline = Date().addingTimeInterval(exposureBudget)
+        while !timedOut, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.03)
+            if case .text(let frame) = lookUp(system, app: app) { return frame }
+        }
+        return nil
+    }
+
+    private static func lookUp(_ system: AXUIElement, app: String) -> Lookup {
         guard let focused = attribute(system, kAXFocusedUIElementAttribute),
               CFGetTypeID(focused) == AXUIElementGetTypeID()
         else {
             logger.debug("\(app, privacy: .public): no focused element, using the pointer")
-            exposeElectronFields()
-            return nil
+            return .notText
         }
         let element = focused as! AXUIElement
+        AXUIElementSetMessagingTimeout(element, messagingTimeout)
         let role = attribute(element, kAXRoleAttribute) as? String
         let subrole = attribute(element, kAXSubroleAttribute) as? String
         let field = frame(of: element)
@@ -52,41 +87,42 @@ import os
             || [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole].contains(role ?? "")
         guard isText else {
             logger.debug("\(app, privacy: .public): not a text field, using the pointer")
-            exposeElectronFields()
-            return nil
+            return .notText
         }
 
         if let field, field.height > 0, field.height <= maxFieldHeight {
             logger.debug("\(app, privacy: .public): using the field")
-            return toScreen(field)
+            return .text(toScreen(field))
         }
         if let caret, caret.height > 0 {
             logger.debug("\(app, privacy: .public): using the caret")
-            return toScreen(caret)
+            return .text(toScreen(caret))
         }
         logger.debug("\(app, privacy: .public): no usable frame, using the pointer")
-        return nil
+        return .text(nil)
     }
 
-    /// Electron apps, such as Slack, Discord or Claude, show their text
-    /// fields to Accessibility only after being asked to. Ask the
-    /// frontmost one once; it takes effect from the next open.
-    private static func exposeElectronFields() {
-        guard let app = NSWorkspace.shared.frontmostApplication,
-              !enabledApps.contains(app.processIdentifier),
-              let bundle = app.bundleURL,
+    /// The app's Accessibility element when it is an Electron app that
+    /// has not been asked to show its text fields. Nil when it has, by
+    /// the user or another tool: that setting is theirs and is left on.
+    private static func electronAppToExpose(_ app: NSRunningApplication) -> AXUIElement? {
+        guard let bundle = app.bundleURL,
               FileManager.default.fileExists(
                   atPath: bundle.appendingPathComponent("Contents/Frameworks/Electron Framework.framework").path
               )
-        else { return }
-        enabledApps.insert(app.processIdentifier)
+        else { return nil }
         let element = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, true as CFBoolean)
+        AXUIElementSetMessagingTimeout(element, messagingTimeout)
+        if attribute(element, manualAccessibility as String) as? Bool == true { return nil }
+        return timedOut ? nil : element
     }
 
     private static func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+        guard !timedOut else { return nil }
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+        let result = AXUIElementCopyAttributeValue(element, name as CFString, &value)
+        if result == .cannotComplete { timedOut = true }
+        guard result == .success else { return nil }
         return value
     }
 
@@ -126,9 +162,11 @@ import os
     private static func caretFrame(of element: AXUIElement) -> CGRect? {
         guard let range = attribute(element, kAXSelectedTextRangeAttribute) else { return nil }
         var bounds: CFTypeRef?
-        guard AXUIElementCopyParameterizedAttributeValue(
+        let result = AXUIElementCopyParameterizedAttributeValue(
             element, kAXBoundsForRangeParameterizedAttribute as CFString, range, &bounds
-        ) == .success else { return nil }
+        )
+        if result == .cannotComplete { timedOut = true }
+        guard result == .success else { return nil }
         return rect(bounds)
     }
 
