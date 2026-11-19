@@ -31,12 +31,15 @@ import ClipboardCore
     @Test func openResetsQuerySelectionAndNotice() {
         let model = makeModel("a", "b", "c")
         model.query = "a"
+        model.warning = "not saved"
         model.notice = "something"
         model.noticeLink = URL(string: "https://example.com")
         model.open()
         #expect(model.query == "")
         #expect(model.notice == nil)
         #expect(model.noticeLink == nil)
+        // A warning is about something that lasts, and stays.
+        #expect(model.warning == "not saved")
         #expect(titles(model) == ["c", "b", "a"])
         #expect(model.selectedID == model.rows[0].id)
     }

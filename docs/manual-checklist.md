@@ -122,6 +122,11 @@ Expected behaviour is defined in `specification.md`.
       nothing.
 - [ ] Keychain Access shows 'Klippari history key'; another app asking
       for it gets a macOS prompt.
+- [ ] With 'Klippari history key' deleted in Keychain Access and
+      Klippari relaunched, the files in `items.noindex` are all still
+      there, the menu starts with 'History isn't being saved' and the
+      reason, and the panel's footer says the same on every open.
+      Copies made now are gone after quitting.
 - [ ] Lowering the history size trims the list at once.
 - [ ] Shortcut field: Return arms it, Esc cancels, Cmd+V and Cmd+Q are
       refused, and a failed registration keeps the previous shortcut.

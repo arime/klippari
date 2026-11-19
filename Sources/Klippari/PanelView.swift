@@ -228,6 +228,14 @@ struct PanelView: View {
                         .foregroundStyle(.primary)
                 }
                 Spacer()
+            } else if let warning = model.warning {
+                // What is wrong matters more than the key hints.
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    Text(warning).foregroundStyle(.primary).lineLimit(1)
+                }
+                .help(warning)
+                Spacer()
             } else {
                 KeyHint(keys: "↩", label: "Paste")
                 KeyHint(keys: "⇧ ↩", label: "Plain text")

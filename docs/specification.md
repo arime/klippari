@@ -61,7 +61,10 @@ without the mouse.
   nor the archive holds an encrypted item. If the key is missing while
   one does, or the keychain refuses, the history is kept for that run
   only, in a temporary folder with a key that never leaves memory, and
-  the saved history is left alone.
+  the saved history is left alone. While that lasts the app says so:
+  the menu bar menu starts with the disabled lines 'History isn't being
+  saved' and the reason, and the panel's footer shows the same in
+  place of the key hints.
 - Spotlight and backups are kept out: the folder names end in
   `.noindex`, the Klippari folder holds a `.metadata_never_index` file
   and is excluded from backups.
@@ -176,7 +179,8 @@ Layout, top to bottom, in a card 640 points wide with 14-point corners:
 - A strip of key hints, each kept on one line: Return 'Paste',
   Shift+Return 'Plain text', Cmd+1–9 'Quick paste' on the left; Cmd+Backspace 'Delete',
   followed by Shift 'all', and esc 'Close' on the right. A notice replaces the hints when there is
-  something to say.
+  something to say, and so does the warning that the history is not
+  being saved, for as long as it is not.
 
 Each row has four lanes:
 
@@ -287,7 +291,10 @@ instead.
   image, so macOS tints it for light and dark menu bars. It is dimmed
   while capture is paused.
 - Menu: Pause Capture / Resume Capture, Clear History, Reset Panel
-  Position, Settings… (Cmd+,), Quit Klippari (Cmd+Q).
+  Position, Settings… (Cmd+,), Quit Klippari (Cmd+Q). While the
+  history is not being saved, two disabled lines come first: 'History
+  isn't being saved' and why (the key is missing, the keychain did not
+  give it, or the folder could not be set up).
 - Reset Panel Position forgets where the panel was dragged to, so it
   opens in its default place again.
 - Clear History asks for confirmation, then clears the history into

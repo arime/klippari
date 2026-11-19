@@ -33,6 +33,10 @@ import Observation
     public private(set) var rows: [Row] = []
     public private(set) var selectedID: UUID?
 
+    /// Something wrong that lasts, such as the history not being saved.
+    /// Shown in the footer in place of the key hints on every open,
+    /// until it is set back to nil; a `notice` shows over it.
+    public var warning: String?
     /// Replaces the footer's key hints when set.
     public var notice: String?
     /// Where to go to act on the notice, shown as a link after it.
