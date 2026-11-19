@@ -159,16 +159,20 @@ public struct ItemStorage: Sendable {
         try? FileManager.default.removeItem(at: directory(for: id))
     }
 
-    /// Moves every item into `archive`, adding to what is already there;
+    /// Moves these items into `archive`, adding to what is already there;
     /// an item whose id is there already replaces that one. Each item
     /// moves on its own, so one that cannot be moved stays here and is
-    /// reported in `left`, and the rest are still archived.
-    public func archiveAll(to archive: ItemStorage) -> (moved: Set<UUID>, left: Set<UUID>) {
+    /// reported in `left`, and the rest are still archived. Ids with
+    /// nothing on disk are skipped, and so is everything else in the
+    /// folder: an item that could not be decrypted is not in the
+    /// history, and stays.
+    public func archive(
+        _ ids: some Sequence<UUID>, to archive: ItemStorage
+    ) -> (moved: Set<UUID>, left: Set<UUID>) {
         let fm = FileManager.default
         var moved: Set<UUID> = []
         var left: Set<UUID> = []
-        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] {
-            guard let id = UUID(uuidString: name) else { continue }
+        for id in ids where fm.fileExists(atPath: directory(for: id).path) {
             let destination = archive.directory(for: id)
             do {
                 if fm.fileExists(atPath: destination.path) {
@@ -222,9 +226,13 @@ public struct ItemStorage: Sendable {
 
     /// Every item, newest `lastUsedAt` first, with lightened content: only
     /// text and file URL bytes are read. Directories that are not complete
-    /// (interrupted writes, missing data files) or cannot be decrypted are
-    /// removed. Items still in plain form, which `sealPlainItems` could
-    /// not encrypt yet, are skipped and kept for it to retry.
+    /// (interrupted writes, missing data files) are removed.
+    ///
+    /// An item whose manifest was sealed with another key is skipped and
+    /// left on disk: the key may only be missing for now, and without it
+    /// nothing tells a damaged item from a healthy one. Items still in
+    /// plain form, which `sealPlainItems` could not encrypt yet, are also
+    /// skipped and kept, for it to retry.
     public func loadAll() -> [ClipItem] {
         let fm = FileManager.default
         var items: [ClipItem] = []
@@ -234,24 +242,53 @@ public struct ItemStorage: Sendable {
             guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
                 continue
             }
-            if let id = UUID(uuidString: name), let item = loadItem(url, id: id) {
-                items.append(item)
-            } else if isPlain(url) {
+            guard let id = UUID(uuidString: name),
+                  let raw = try? Data(contentsOf: url.appendingPathComponent(Self.manifestName)), !raw.isEmpty
+            else {
+                // Not an item, or one that never got its manifest.
+                try? fm.removeItem(at: url)
                 continue
+            }
+            guard ItemCipher.isSealed(raw),
+                  let opened = try? cipher.open(raw, context: Self.context(id, Self.manifestName))
+            else { continue }
+            if let manifest = try? JSONDecoder().decode(Manifest.self, from: opened), manifest.id == id,
+               let item = loadItem(manifest, in: url) {
+                items.append(item)
             } else {
+                // The manifest is ours, so what is wrong is the item.
                 try? fm.removeItem(at: url)
             }
         }
         return items.sorted { $0.lastUsedAt > $1.lastUsedAt }
     }
 
-    private func isPlain(_ directory: URL) -> Bool {
-        guard let handle = try? FileHandle(forReadingFrom: directory.appendingPathComponent(Self.manifestName)) else {
-            return false
+    /// True when `root`, or a clear's folder in it, holds an item that
+    /// was sealed, with whatever key.
+    /// Such a history can only be read with the key it was sealed with.
+    public static func holdsSealedItems(_ root: URL) -> Bool {
+        holdsSealedItems(root, foldersDeep: 1)
+    }
+
+    /// Also looks `foldersDeep` levels into folders that are not items,
+    /// such as the cleared history's folder for each clear.
+    private static func holdsSealedItems(_ root: URL, foldersDeep: Int) -> Bool {
+        let fm = FileManager.default
+        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] {
+            let url = root.appendingPathComponent(name)
+            guard UUID(uuidString: name) != nil else {
+                var isDirectory: ObjCBool = false
+                if foldersDeep > 0, fm.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue,
+                   holdsSealedItems(url, foldersDeep: foldersDeep - 1) {
+                    return true
+                }
+                continue
+            }
+            guard let handle = try? FileHandle(forReadingFrom: url.appendingPathComponent(manifestName)) else { continue }
+            defer { try? handle.close() }
+            if let head = try? handle.read(upToCount: 4), ItemCipher.isSealed(head) { return true }
         }
-        defer { try? handle.close() }
-        let head = (try? handle.read(upToCount: 4)) ?? Data()
-        return !head.isEmpty && !ItemCipher.isSealed(head)
+        return false
     }
 
     /// The item's full content, for pasting. Nil when it cannot all be read.
@@ -269,10 +306,8 @@ public struct ItemStorage: Sendable {
         return manifest
     }
 
-    private func loadItem(_ directory: URL, id: UUID) -> ClipItem? {
-        guard let manifest = manifest(in: directory, id: id),
-              let light = content(of: manifest, in: directory, full: false)
-        else { return nil }
+    private func loadItem(_ manifest: Manifest, in directory: URL) -> ClipItem? {
+        guard let light = content(of: manifest, in: directory, full: false) else { return nil }
 
         var hash = manifest.contentHash
         if hash == nil {
