@@ -39,6 +39,54 @@ import ClipboardCore
         #expect(r.tag == "1280 × 720 · PNG")
     }
 
+    @Test func imageAlsoOfferedAsItsFile() {
+        // What clipaste writes after a screenshot: the PNG bytes plus a
+        // file URL and path for the same PNG saved to disk. As held in
+        // memory, so the image bytes are not loaded.
+        let r = row(
+            content(
+                TypedData(type: TypeName.png, data: nil),
+                typed(TypeName.fileURL, "file:///var/folders/xy/T/clipaste/shot-sha256-0640ee45.png"),
+                TypedData(type: "com.apple.pboard.type.PNGf", data: nil),
+                typed(TypeName.plainText, "/var/folders/xy/T/clipaste/shot-sha256-0640ee45.png"),
+                typed("x.nspasteboard.ModifiedType", "42")
+            ),
+            imageInfo: ImageInfo(width: 2188, height: 1264, format: "PNG")
+        )
+        #expect(r.kind == .image)
+        #expect(r.title == "Image")
+        #expect(r.tag == "2188 × 1264 · PNG")
+        #expect(r.matches("shot-sha256"))
+    }
+
+    @Test func imageFileCopiedInFinderStaysAFile() {
+        // Finder adds the file's icon as image data, which is not PNG.
+        let r = row(
+            content(
+                typed(TypeName.fileURL, "file:///Users/me/holiday.png"),
+                typed(TypeName.plainText, "holiday.png"),
+                TypedData(type: "com.apple.icns", data: nil),
+                TypedData(type: TypeName.tiff, data: nil)
+            ),
+            imageInfo: ImageInfo(width: 512, height: 512, format: "TIFF")
+        )
+        #expect(r.kind == .file)
+        #expect(r.title == "holiday.png")
+    }
+
+    @Test func fileWithPNGPreviewStaysAFile() {
+        // The PNG is a picture of the file, not the file itself.
+        let r = row(
+            content(
+                typed(TypeName.fileURL, "file:///Users/me/report.pdf"),
+                TypedData(type: TypeName.png, data: nil)
+            ),
+            imageInfo: ImageInfo(width: 64, height: 64, format: "PNG")
+        )
+        #expect(r.kind == .file)
+        #expect(r.title == "report.pdf")
+    }
+
     @Test func styledText() {
         let rtf = row(content(typed(TypeName.plainText, "Meeting notes"), typed(TypeName.rtf, "{rtf}")))
         #expect(rtf.kind == .styledText)
@@ -102,6 +150,26 @@ import ClipboardCore
         #expect(!note.matches("safari"))
         let file = row(content(typed(TypeName.fileURL, "file:///tmp/report-final.pdf")))
         #expect(file.matches("report"))
+    }
+
+    @Test func searchMatchesKindOfItem() {
+        let image = row(
+            content(TypedData(type: TypeName.png, data: nil)),
+            sourceApp: "Preview", imageInfo: ImageInfo(width: 10, height: 10, format: "PNG")
+        )
+        #expect(image.matches("image"))
+        #expect(image.matches("png"))
+        #expect(!image.matches("link"))
+
+        let link = row(text("https://example.com"))
+        #expect(link.matches("link"))
+        #expect(!link.matches("image"))
+
+        #expect(row(content(typed(TypeName.fileURL, "file:///tmp/a.pdf"))).matches("file"))
+        #expect(row(text("hello")).matches("text"))
+        let styled = row(content(typed(TypeName.plainText, "x"), typed(TypeName.rtf, "{rtf}")))
+        #expect(styled.matches("styled"))
+        #expect(styled.matches("text"))
     }
 
     @Test func searchReachesBeyondTheFirstLine() {

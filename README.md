@@ -50,6 +50,7 @@ Requires macOS 15 or later, on Apple silicon or Intel.
 | Cmd+1 to Cmd+9             | Paste that row straight away              |
 | Typing                     | Filter by text, file name or source app   |
 | Cmd+Backspace              | Remove the selected item from the history |
+| Shift+Cmd+Backspace        | Clear the history (restorable in Settings) |
 | Esc                        | Clear the filter, then close              |
 
 The panel shows up to nine rows and scrolls beyond that. Drag it by
@@ -60,7 +61,8 @@ its search row or footer to move it. It reopens where you left it.
 The menu bar icon has:
 
 - **Pause/Resume Capture**: stop and restart recording.
-- **Clear History**: remove every item, after a confirmation.
+- **Clear History**: clear every item, after a confirmation. Settings
+  can restore the last cleared history.
 - **Reset Panel Position**: put the panel back in the middle.
 - **Settings…**: history size (5 to 500 items), the shortcut, and
   start at login.
@@ -142,7 +144,9 @@ Reading the clipboard in the background needs no permission.
 
 History is kept in `~/Library/Application Support/Klippari/items`, one
 folder per item, readable only by you. Settings are in the preferences
-of `com.arime.Klippari`. Clear History in the menu removes every item.
+of `com.arime.Klippari`. Clearing the history moves it to
+`items-archive` next to it, replacing the previous one, until it is
+restored from Settings.
 
 ## Icon and screenshots
 

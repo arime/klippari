@@ -87,6 +87,31 @@ struct Shortcut: Codable, Equatable {
     /// Set by the app when the chosen shortcut could not be registered.
     var shortcutUnavailable = false
 
+    /// Point at a row to select it, click to paste it. Off by default:
+    /// the panel is made for the keyboard.
+    var mouseOnRows: Bool {
+        didSet { defaults.set(mouseOnRows, forKey: "mouseOnRows") }
+    }
+
+    /// Open the panel next to the text field being typed in, or the
+    /// mouse pointer, instead of its usual place. Off by default.
+    var openAtPointer: Bool {
+        didSet { defaults.set(openAtPointer, forKey: "openAtPointer") }
+    }
+
+    /// Show the selected image, or one whose thumbnail the pointer is
+    /// over, large beside the panel, to tell similar screenshots apart.
+    /// Off by default.
+    var magnifyImages: Bool {
+        didSet { defaults.set(magnifyImages, forKey: "magnifyImages") }
+    }
+
+    /// The last cleared history, for Settings to offer restoring. Kept up
+    /// to date by the app; not stored in the preferences.
+    var archive: ArchiveSummary?
+    /// Restores the last cleared history.
+    @ObservationIgnored var onRestoreArchive: (() -> Void)?
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         let storedLimit = defaults.integer(forKey: "historyLimit")
@@ -95,5 +120,8 @@ struct Shortcut: Codable, Equatable {
             .flatMap { try? JSONDecoder().decode(Shortcut.self, from: $0) } ?? .default
         panelPlacement = defaults.data(forKey: "panelPlacement")
             .flatMap { try? JSONDecoder().decode(PanelPlacement.self, from: $0) }
+        mouseOnRows = defaults.bool(forKey: "mouseOnRows")
+        openAtPointer = defaults.bool(forKey: "openAtPointer")
+        magnifyImages = defaults.bool(forKey: "magnifyImages")
     }
 }

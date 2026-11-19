@@ -35,6 +35,8 @@ import Observation
 
     /// Replaces the footer's key hints when set.
     public var notice: String?
+    /// Where to go to act on the notice, shown as a link after it.
+    public var noticeLink: URL?
 
     public init(store: HistoryStore, now: @escaping () -> Date = Date.init) {
         self.store = store
@@ -56,9 +58,16 @@ import Observation
         return store.items.first { $0.id == selectedID }
     }
 
+    /// The item behind a visible row; nil for an id that is not visible.
+    public func visibleItem(_ id: UUID) -> ClipItem? {
+        guard rows.contains(where: { $0.id == id }) else { return nil }
+        return store.items.first { $0.id == id }
+    }
+
     /// Called each time the panel is shown.
     public func open() {
         notice = nil
+        noticeLink = nil
         query = ""
         rebuild(keepingSelection: false)
     }
@@ -77,6 +86,13 @@ import Observation
         guard (1...9).contains(n), n <= rows.count else { return nil }
         let id = rows[n - 1].id
         return store.items.first { $0.id == id }
+    }
+
+    /// Selects a visible row, as clicking it does. An id that is not
+    /// among the visible rows is ignored.
+    public func select(_ id: UUID) {
+        guard rows.contains(where: { $0.id == id }) else { return }
+        selectedID = id
     }
 
     public func deleteSelected() {

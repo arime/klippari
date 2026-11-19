@@ -124,6 +124,23 @@ public struct ItemStorage: Sendable {
         try? FileManager.default.removeItem(at: directory(for: id))
     }
 
+    /// Moves every item into `archive`, replacing whatever was there,
+    /// and leaves this storage empty. The archive's date is set to `date`.
+    public func archiveAll(to archive: URL, at date: Date) throws {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: archive.path) {
+            try fm.removeItem(at: archive)
+        }
+        try fm.moveItem(at: root, to: archive)
+        try? fm.setAttributes([.modificationDate: date, .posixPermissions: 0o700], ofItemAtPath: archive.path)
+        try fm.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    }
+
+    /// Moves one item's directory into another storage.
+    public func move(id: UUID, to other: ItemStorage) throws {
+        try FileManager.default.moveItem(at: directory(for: id), to: other.directory(for: id))
+    }
+
     public func deleteAll() {
         let fm = FileManager.default
         for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] {

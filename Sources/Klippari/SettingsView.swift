@@ -71,6 +71,30 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            LabeledContent("Mouse") {
+                Toggle("Point to select, click to paste", isOn: $settings.mouseOnRows)
+            }
+
+            LabeledContent("Position") {
+                Toggle("Open at context (cursor fallback)", isOn: $settings.openAtPointer)
+            }
+
+            LabeledContent("Images") {
+                Toggle("Show the selected image large beside the panel", isOn: $settings.magnifyImages)
+            }
+
+            LabeledContent("Cleared history") {
+                if let archive = settings.archive {
+                    HStack(spacing: 8) {
+                        Text("\(archive.count == 1 ? "1 item" : "\(archive.count) items"), "
+                            + archive.archivedAt.formatted(date: .abbreviated, time: .shortened))
+                        Button("Restore") { settings.onRestoreArchive?() }
+                    }
+                } else {
+                    Text("None").foregroundStyle(.secondary)
+                }
+            }
         }
         .padding(20)
         .frame(width: 420)

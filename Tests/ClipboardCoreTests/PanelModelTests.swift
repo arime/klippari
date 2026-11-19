@@ -32,9 +32,11 @@ import ClipboardCore
         let model = makeModel("a", "b", "c")
         model.query = "a"
         model.notice = "something"
+        model.noticeLink = URL(string: "https://example.com")
         model.open()
         #expect(model.query == "")
         #expect(model.notice == nil)
+        #expect(model.noticeLink == nil)
         #expect(titles(model) == ["c", "b", "a"])
         #expect(model.selectedID == model.rows[0].id)
     }
@@ -59,6 +61,25 @@ import ClipboardCore
         #expect(model.selectedID == model.rows[1].id)
         model.moveSelection(by: 5)
         #expect(model.selectedID == model.rows[2].id)
+    }
+
+    @Test func visibleItemOnlyForVisibleRows() {
+        let model = makeModel("apple", "banana")
+        let banana = model.rows[0].id
+        #expect(model.visibleItem(banana)?.content == text("banana"))
+        model.query = "apple"
+        #expect(model.visibleItem(banana) == nil)
+    }
+
+    @Test func selectPicksAVisibleRowOnly() {
+        let model = makeModel("apple", "banana", "cherry")
+        model.select(model.rows[2].id)
+        #expect(model.selectedItem?.content == text("apple"))
+
+        let hidden = model.rows[1].id // banana
+        model.query = "apple"
+        model.select(hidden)
+        #expect(model.selectedItem?.content == text("apple"))
     }
 
     @Test func queryFiltersAndSelectsFirstMatch() {

@@ -27,17 +27,22 @@ import SwiftUI
             model.query = arguments[query + 1]
         }
 
+        // Throwaway preferences, so a snapshot never shows or changes the
+        // user's settings.
+        let defaults = UserDefaults(suiteName: "Klippari-snapshot-\(UUID().uuidString)") ?? .standard
+        let settings = Settings(defaults: defaults)
         let view: AnyView
         if arguments.contains("settings") {
-            // The settings window's content, with throwaway preferences.
-            let defaults = UserDefaults(suiteName: "Klippari-snapshot-\(UUID().uuidString)") ?? .standard
             view = AnyView(
-                SettingsView(settings: Settings(defaults: defaults))
+                SettingsView(settings: settings)
                     .background(Color(nsColor: .windowBackgroundColor))
             )
         } else {
             view = AnyView(
-                PanelView(model: model, focus: PanelFocus(), storage: storage, opaqueBackground: true)
+                PanelView(
+                    model: model, focus: PanelFocus(), storage: storage, settings: settings,
+                    opaqueBackground: true
+                )
                     .background(Color(white: dark ? 0.2 : 0.8))
             )
         }

@@ -128,4 +128,72 @@ func at(_ seconds: TimeInterval) -> Date {
         store.clear()
         #expect(count == 6)
     }
+
+    // MARK: Archive
+
+    @Test func archiveAllClearsIntoTheArchive() {
+        let store = makeStore()
+        store.add(text("a"), sourceApp: nil, now: at(1))
+        store.add(text("b"), sourceApp: nil, now: at(2))
+        #expect(store.archiveSummary == nil)
+        #expect(store.archiveAll(now: at(10)) == 2)
+        #expect(store.items.isEmpty)
+        #expect(itemsOnDisk() == 0)
+        #expect(store.archiveSummary == ArchiveSummary(count: 2, archivedAt: at(10)))
+    }
+
+    @Test func archivingNothingKeepsThePreviousArchive() {
+        let store = makeStore()
+        store.add(text("a"), sourceApp: nil, now: at(1))
+        store.archiveAll(now: at(10))
+        #expect(store.archiveAll(now: at(20)) == 0)
+        #expect(store.archiveSummary?.count == 1)
+    }
+
+    @Test func aNewArchiveReplacesTheLastOne() {
+        let store = makeStore()
+        store.add(text("a"), sourceApp: nil, now: at(1))
+        store.add(text("b"), sourceApp: nil, now: at(2))
+        store.archiveAll(now: at(10))
+        store.add(text("c"), sourceApp: nil, now: at(11))
+        store.archiveAll(now: at(20))
+        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(20)))
+        store.restoreArchive()
+        #expect(store.items.map(\.content) == [text("c")])
+    }
+
+    @Test func restoreMergesByDateSkipsDuplicatesAndRemovesTheArchive() {
+        let store = makeStore()
+        store.add(text("a"), sourceApp: nil, now: at(1))
+        store.add(text("b"), sourceApp: nil, now: at(3))
+        store.archiveAll(now: at(10))
+        store.add(text("new"), sourceApp: nil, now: at(2))
+        store.add(text("b"), sourceApp: nil, now: at(12)) // copied again since
+        #expect(store.restoreArchive() == 1)
+        #expect(store.items.map(\.content) == [text("b"), text("new"), text("a")])
+        #expect(store.archiveSummary == nil)
+        #expect(!FileManager.default.fileExists(atPath: store.archiveRoot.path))
+
+        // The restored item is back on disk for good.
+        let reopened = makeStore()
+        #expect(reopened.items.map(\.content) == [text("b"), text("new"), text("a")])
+    }
+
+    @Test func restoreKeepsTheHistorySize() {
+        let store = makeStore(limit: 2)
+        store.add(text("a"), sourceApp: nil, now: at(1))
+        store.add(text("b"), sourceApp: nil, now: at(2))
+        store.archiveAll(now: at(10))
+        store.add(text("c"), sourceApp: nil, now: at(11))
+        store.restoreArchive()
+        #expect(store.items.map(\.content) == [text("c"), text("b")])
+        #expect(itemsOnDisk() == 2)
+    }
+
+    @Test func restoreWithoutAnArchiveDoesNothing() {
+        let store = makeStore()
+        store.add(text("a"), sourceApp: nil, now: at(1))
+        #expect(store.restoreArchive() == 0)
+        #expect(store.items.count == 1)
+    }
 }
