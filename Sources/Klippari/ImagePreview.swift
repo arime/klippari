@@ -66,7 +66,7 @@ import ClipboardCore
         if let ready = cache[item.id] {
             imageView.image = ready
         } else {
-            imageView.image = NSImage(contentsOf: storage.thumbnailURL(for: item.id))
+            imageView.image = storage.thumbnail(for: item.id).flatMap(NSImage.init(data:))
             load(item.id)
         }
         window.setFrame(frame, display: true)

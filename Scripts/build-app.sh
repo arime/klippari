@@ -62,7 +62,11 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 if [ -f Resources/AppIcon.icns ]; then
     cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 fi
-codesign --force --sign "$IDENTITY" "$APP"
+# Hardened runtime, as in release builds: without it any process of this
+# user could inject code with DYLD_INSERT_LIBRARIES and use the
+# Accessibility permission this build inherits. No timestamp, so a dev
+# build needs no network.
+codesign --force --options runtime --sign "$IDENTITY" "$APP"
 
 if [ "$INSTALL" -eq 0 ]; then
     echo "Built $APP"

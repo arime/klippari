@@ -52,9 +52,26 @@ without the mouse.
 
 ## Storage
 
-- History lives in `~/Library/Application Support/Klippari/items`,
-  readable only by the user (mode 0700), and survives restart and
-  logout.
+- History lives in `~/Library/Application Support/Klippari/items.noindex`
+  and survives restart and logout. Folders are mode 0700 and files
+  0600.
+- Every file is encrypted with AES-GCM, with a 256-bit key kept in the
+  login keychain (service `com.arime.Klippari`), and bound to its item
+  and file name. Files that do not decrypt are treated as unreadable.
+  If the keychain refuses, the history is kept for that run only, in a
+  temporary folder with a key that never leaves memory, and the saved
+  history is left alone.
+- Spotlight and backups are kept out: the folder names end in
+  `.noindex`, the Klippari folder holds a `.metadata_never_index` file
+  and is excluded from backups.
+- Version 1.0 kept the history as plain files in `items`, and builds
+  before encryption kept the cleared history in `items-archive`. On
+  launch these are renamed to their `.noindex` names and every plain
+  item is encrypted in place, in each clear's folder too. An item that
+  cannot be read whole is removed; one that cannot be saved (a full
+  disk) is left as it is and tried again on the next launch. A clear
+  keeps its date, which is in its folder's name; a flat archive gets
+  its 24 hours from the move.
 - Each item has its own directory named by its identifier, containing:
   - `manifest.json`: identifier, capture time, last-used time, source
     app, image size and format if any, content hash, and for each
@@ -69,7 +86,7 @@ without the mouse.
   data is read from disk when the item is pasted.
 - Moving an item to the top rewrites only its manifest.
 - Clearing the history moves every item's directory into a folder of
-  its own for that clear, `items-archive/<time>/`, beside `items`. The
+  its own for that clear, `items-archive.noindex/<time>/`, beside `items.noindex`. The
   folder is named by the time of the clear in UTC, ISO 8601 basic
   format (`20261120T060413Z`); two clears in the same second share
   one. Earlier clears are kept, so clearing twice loses nothing. An
@@ -79,7 +96,7 @@ without the mouse.
   neither moved nor saved stays in the history and is left out of the
   count the notice gives, so everything it counts can be restored.
   An archive left flat by earlier builds of this change, with item
-  folders directly in `items-archive`, becomes one clear at launch,
+  folders directly in `items-archive.noindex`, becomes one clear at launch,
   dated by the folder's modification time. Restoring moves back as many archived
   items as the history has room for (the history size minus the items
   in it), newest last-used time first, and orders everything by
@@ -87,7 +104,7 @@ without the mouse.
   deletes an item or pushes one out of the history; an archived copy
   of something already in the history is dropped. An item that could
   not be moved stays in the archive too. A clear's folder is removed
-  once it is empty, and `items-archive` once no clear is left.
+  once it is empty, and `items-archive.noindex` once no clear is left.
 - Each clear is deleted 24 hours after it was made. Klippari checks at
   launch, when the Mac wakes from sleep, and when a single timer set
   for the oldest clear's time fires (it may fire up to a minute late,

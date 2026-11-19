@@ -15,6 +15,8 @@ struct ClearedHistory {
     }
 
     let root: URL
+    /// Cleared items are encrypted like the history.
+    let cipher: ItemCipher
 
     private static let nameStyle = Date.ISO8601FormatStyle(
         dateSeparator: .omitted, dateTimeSeparator: .standard, timeSeparator: .omitted, timeZone: .gmt
@@ -29,7 +31,7 @@ struct ClearedHistory {
             let url = root.appendingPathComponent(name)
             var isDirectory: ObjCBool = false
             guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else { continue }
-            clears.append(Clear(date: date, storage: ItemStorage(root: url)))
+            clears.append(Clear(date: date, storage: ItemStorage(root: url, cipher: cipher)))
         }
         return clears.sorted { $0.date < $1.date }
     }
@@ -37,7 +39,7 @@ struct ClearedHistory {
     /// Where a clear made at `date` goes. Two clears within the same
     /// second share a folder.
     func storage(for date: Date) -> ItemStorage {
-        ItemStorage(root: root.appendingPathComponent(date.formatted(Self.nameStyle)))
+        ItemStorage(root: root.appendingPathComponent(date.formatted(Self.nameStyle)), cipher: cipher)
     }
 
     /// Every cleared item with the clear it is in, most recently used

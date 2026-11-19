@@ -1,5 +1,6 @@
 import AppKit
 import ClipboardCore
+import os
 
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = Settings()
@@ -12,9 +13,13 @@ import ClipboardCore
     private var settingsWindow: SettingsWindowController!
     private var registeredShortcut: Shortcut?
     private var expiryTimer: Timer?
+    /// Set when the history could not be opened on disk and lives in a
+    /// throwaway folder for this run instead.
+    private var unsavedRoot: URL?
+    private static let logger = Logger(subsystem: "com.arime.Klippari", category: "app")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let storage = ItemStorage(root: ItemStorage.defaultRoot)
+        let storage = openStorage()
         store = HistoryStore(storage: storage, limit: settings.historyLimit)
         store.expireArchive(now: Date())
         monitor = ClipboardMonitor(
@@ -54,6 +59,32 @@ import ClipboardCore
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.expire() }
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        if let unsavedRoot {
+            try? FileManager.default.removeItem(at: unsavedRoot.deletingLastPathComponent())
+        }
+    }
+
+    /// The encrypted history in Application Support. When the folder or
+    /// the keychain key cannot be had, the history is kept for this run
+    /// only, in a temporary folder with a key that never leaves memory,
+    /// and the saved history is left untouched for a later launch.
+    private func openStorage() -> ItemStorage {
+        let folder = StorageLocation.defaultFolder
+        do {
+            try StorageLocation.prepare(folder)
+            let key = try KeychainKey.loadOrCreate()
+            return ItemStorage(root: StorageLocation.itemsRoot(in: folder), cipher: ItemCipher(key: key))
+        } catch {
+            Self.logger.error("History is not saved this run: \(String(describing: error), privacy: .public)")
+            let root = FileManager.default.temporaryDirectory
+                .appendingPathComponent("Klippari-unsaved-\(UUID().uuidString)")
+                .appendingPathComponent("items")
+            unsavedRoot = root
+            return ItemStorage(root: root, cipher: .ephemeral())
         }
     }
 
