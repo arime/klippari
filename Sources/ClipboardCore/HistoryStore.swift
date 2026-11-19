@@ -95,9 +95,9 @@ public struct RestoreResult: Equatable, Sendable {
         // rewrites anything in it.
         archive.adoptFlatLayout()
         // History written before encryption is encrypted before it is
-        // loaded, since loading drops whatever cannot be decrypted. A
-        // clear's date is in its folder's name, so sealing its items
-        // leaves when it expires unchanged.
+        // loaded, since loading skips whatever is not sealed. A clear's
+        // date is in its folder's name, so sealing its items leaves when
+        // it expires unchanged.
         storage.sealPlainItems()
         for clear in archive.clears() {
             clear.storage.sealPlainItems()
@@ -173,7 +173,7 @@ public struct RestoreResult: Equatable, Sendable {
         let archive = archive
         let earlier = archive.items()
         let clear = archive.storage(for: now)
-        var (moved, left) = storage.archiveAll(to: clear)
+        var (moved, left) = storage.archive(items.map(\.id), to: clear)
         // An item whose save failed is only in memory, with its full
         // content: save it into the archive instead. If that fails too,
         // it stays in the history.

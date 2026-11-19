@@ -17,11 +17,10 @@ enum KeychainKey {
     private static let service = "com.arime.Klippari"
     private static let account = "history-encryption-key"
 
-    /// The stored key, or a new one stored now when there is none yet.
-    /// Throws when the keychain refuses or holds something unusable: the
-    /// caller must then not touch the history on disk, which only the
-    /// stored key can decrypt.
-    static func loadOrCreate() throws -> SymmetricKey {
+    /// The stored key; nil when there is none. Throws when the keychain
+    /// refuses or holds something unusable: the caller must then not
+    /// touch the history on disk, which only the stored key can decrypt.
+    static func load() throws -> SymmetricKey? {
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
@@ -36,7 +35,12 @@ enum KeychainKey {
             return SymmetricKey(data: data)
         }
         guard status == errSecItemNotFound else { throw Failure(status: status) }
+        return nil
+    }
 
+    /// Makes a new key and stores it. Only for when no history sealed
+    /// with an earlier key is on disk (see `ItemCipher.key`).
+    static func create() throws -> SymmetricKey {
         let key = SymmetricKey(size: .bits256)
         let add: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
