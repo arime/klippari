@@ -93,11 +93,17 @@ struct SettingsView: View {
                 LabeledContent("Cleared history") {
                     VStack(alignment: .leading, spacing: 6) {
                         // The summary gets a line of its own: beside the
-                        // button it wrapped onto two.
+                        // buttons it wrapped onto two.
                         Text("\(archive.count == 1 ? "1 item" : "\(archive.count) items"), cleared "
                             + archive.archivedAt.formatted(date: .abbreviated, time: .shortened))
                             .fixedSize()
-                        Button("Restore") { settings.onRestoreArchive?() }
+                        HStack(spacing: 8) {
+                            Button("Restore") { settings.onRestoreArchive?() }
+                            Button("Delete", role: .destructive) { settings.onDeleteArchive?() }
+                        }
+                        Text("Deleted automatically 24 hours after clearing.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.top, 10)

@@ -274,3 +274,28 @@ func at(_ seconds: TimeInterval) -> Date {
         #expect(store.items.count == 1)
     }
 }
+
+@MainActor @Suite struct ClearedHistoryLifetimeTests {
+    let root = temporaryRoot()
+
+    @Test func deleteRemovesTheArchive() {
+        let store = HistoryStore(storage: ItemStorage(root: root))
+        store.add(text("a"), sourceApp: nil, now: at(0))
+        store.archiveAll(now: at(1))
+        store.deleteArchive()
+        #expect(store.archiveSummary == nil)
+        #expect(!FileManager.default.fileExists(atPath: store.archiveRoot.path))
+    }
+
+    @Test func archiveExpiresADayAfterTheLastClear() {
+        let store = HistoryStore(storage: ItemStorage(root: root))
+        store.add(text("a"), sourceApp: nil, now: at(0))
+        store.archiveAll(now: at(10))
+        store.add(text("b"), sourceApp: nil, now: at(20))
+        store.archiveAll(now: at(30))
+        #expect(!store.expireArchive(now: at(30 + HistoryStore.archiveLifetime - 1)))
+        #expect(store.archiveSummary?.count == 2)
+        #expect(store.expireArchive(now: at(30 + HistoryStore.archiveLifetime)))
+        #expect(store.archiveSummary == nil)
+    }
+}

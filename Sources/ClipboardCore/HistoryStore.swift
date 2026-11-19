@@ -16,6 +16,9 @@ public struct ArchiveSummary: Equatable, Sendable {
 /// carry lightened content (text and file URLs only); images and other
 /// large data stay on disk until an item is pasted.
 @MainActor public final class HistoryStore {
+    /// How long the cleared history can be restored after the last clear.
+    public static let archiveLifetime: TimeInterval = 24 * 60 * 60
+
     private let storage: ItemStorage
     /// Where clearing the history moves it, so clearing can be
     /// undone: next to the storage, as '<storage folder>-archive'.
@@ -141,6 +144,24 @@ public struct ArchiveSummary: Equatable, Sendable {
               let date = (try? fm.attributesOfItem(atPath: archiveRoot.path))?[.modificationDate] as? Date
         else { return nil }
         return ArchiveSummary(count: count, archivedAt: date)
+    }
+
+    /// Deletes the archive for good.
+    public func deleteArchive() {
+        try? FileManager.default.removeItem(at: archiveRoot)
+    }
+
+    /// Deletes the archive once it is older than `archiveLifetime`, or
+    /// when it holds nothing. Returns whether it was deleted.
+    @discardableResult
+    public func expireArchive(now: Date) -> Bool {
+        guard FileManager.default.fileExists(atPath: archiveRoot.path) else { return false }
+        if let summary = archiveSummary,
+           now.timeIntervalSince(summary.archivedAt) < Self.archiveLifetime {
+            return false
+        }
+        deleteArchive()
+        return true
     }
 
     /// Puts the archived items back, merged with what was copied since by
