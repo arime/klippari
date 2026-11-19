@@ -259,10 +259,11 @@ instead.
   default.
 - **Position**: open the panel next to the text field being typed in,
   or else the mouse pointer. Off by default.
-- **Images**: show the selected image large beside the panel. Off by
+- **Images**: enlarge the selected image beside the panel. Off by
   default.
 - **Cleared history**: the size of the cleared history and the date
-  of the last clear, with Restore, or 'None'.
+  of the last clear, with Restore below. The row is shown only while
+  there is a cleared history.
 
 History size, shortcut, panel position and the panel options are
 stored in the app's preferences.

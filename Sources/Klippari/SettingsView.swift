@@ -75,25 +75,32 @@ struct SettingsView: View {
             LabeledContent("Mouse") {
                 Toggle("Point to select, click to paste", isOn: $settings.mouseOnRows)
             }
+            // The rows fall into three groups (essentials, panel options,
+            // cleared history); a little extra space sets them apart.
+            .padding(.top, 10)
 
             LabeledContent("Position") {
                 Toggle("Open at context (cursor fallback)", isOn: $settings.openAtPointer)
             }
 
             LabeledContent("Images") {
-                Toggle("Show the selected image large beside the panel", isOn: $settings.magnifyImages)
+                Toggle("Enlarge the selected image", isOn: $settings.magnifyImages)
             }
 
-            LabeledContent("Cleared history") {
-                if let archive = settings.archive {
-                    HStack(spacing: 8) {
-                        Text("\(archive.count == 1 ? "1 item" : "\(archive.count) items"), "
+            // Only there when something was cleared, so Settings stays
+            // short in everyday use.
+            if let archive = settings.archive {
+                LabeledContent("Cleared history") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        // The summary gets a line of its own: beside the
+                        // button it wrapped onto two.
+                        Text("\(archive.count == 1 ? "1 item" : "\(archive.count) items"), cleared "
                             + archive.archivedAt.formatted(date: .abbreviated, time: .shortened))
+                            .fixedSize()
                         Button("Restore") { settings.onRestoreArchive?() }
                     }
-                } else {
-                    Text("None").foregroundStyle(.secondary)
                 }
+                .padding(.top, 10)
             }
         }
         .padding(20)
@@ -246,8 +253,12 @@ struct ShortcutRecorder: NSViewRepresentable {
             )
             window.title = "Klippari Settings"
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: SettingsView(settings: settings))
-            window.setContentSize(window.contentView?.fittingSize ?? NSSize(width: 420, height: 200))
+            // The window follows the content's size, which changes when
+            // the Cleared history row comes and goes.
+            let hosting = NSHostingController(rootView: SettingsView(settings: settings))
+            hosting.sizingOptions = [.preferredContentSize]
+            window.contentViewController = hosting
+            window.setContentSize(hosting.view.fittingSize)
             window.center()
             self.window = window
         }
