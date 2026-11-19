@@ -5,7 +5,8 @@ import SwiftUI
 /// Development aid: `Klippari --snapshot <png path> [dark]` renders
 /// the panel with sample items to an image and exits, so its layout can
 /// be compared with the design mock without touching real history.
-/// Adding `settings` renders the settings window's content instead.
+/// Adding `settings` renders the settings window's content instead, and
+/// `archive` gives it a cleared history to show.
 @MainActor enum Snapshot {
     static func runIfRequested() {
         let arguments = CommandLine.arguments
@@ -31,6 +32,9 @@ import SwiftUI
         // user's settings.
         let defaults = UserDefaults(suiteName: "Klippari-snapshot-\(UUID().uuidString)") ?? .standard
         let settings = Settings(defaults: defaults)
+        if arguments.contains("archive") {
+            settings.archive = ArchiveSummary(count: 12, archivedAt: now.addingTimeInterval(-3600))
+        }
         let view: AnyView
         if arguments.contains("settings") {
             view = AnyView(
