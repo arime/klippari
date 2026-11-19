@@ -62,7 +62,7 @@ The menu bar icon has:
 
 - **Pause/Resume Capture**: stop and restart recording.
 - **Clear History**: clear every item, after a confirmation. Settings
-  can restore what was cleared.
+  can restore what was cleared for 24 hours.
 - **Reset Panel Position**: put the panel back in the middle.
 - **Settings…**: history size (5 to 500 items), the shortcut, and
   start at login.
@@ -145,8 +145,9 @@ Reading the clipboard in the background needs no permission.
 History is kept in `~/Library/Application Support/Klippari/items`, one
 folder per item, readable only by you. Settings are in the preferences
 of `com.arime.Klippari`. Clearing the history moves it to
-`items-archive` next to it, adding to what was cleared before, until
-it is restored from Settings.
+`items-archive` next to it, adding to what was cleared before. Settings
+can restore or delete it, and it is deleted on its own 24 hours after
+the last clear.
 
 ## Icon and screenshots
 

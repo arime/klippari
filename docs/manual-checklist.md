@@ -30,6 +30,7 @@ Expected behaviour is defined in `specification.md`.
       since.
 - [ ] Clearing, copying something and clearing again keeps both lots:
       Restore brings back everything from both clears.
+- [ ] Delete under Cleared history removes it, and the row goes away.
 - [ ] The panel looks right in light and dark mode, over light and
       dark windows, including its corners and blur.
 - [ ] An image row shows a thumbnail.

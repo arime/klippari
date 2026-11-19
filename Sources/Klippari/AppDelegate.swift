@@ -11,10 +11,12 @@ import ClipboardCore
     private var statusItem: StatusItemController!
     private var settingsWindow: SettingsWindowController!
     private var registeredShortcut: Shortcut?
+    private var expiryTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let storage = ItemStorage(root: ItemStorage.defaultRoot)
         store = HistoryStore(storage: storage, limit: settings.historyLimit)
+        store.expireArchive(now: Date())
         monitor = ClipboardMonitor(
             pasteboard: SystemPasteboard(), store: store,
             sourceApp: { NSWorkspace.shared.frontmostApplication?.localizedName }
@@ -39,11 +41,28 @@ import ClipboardCore
         statusItem.onResetPanelPosition = { [weak self] in self?.settings.panelPlacement = nil }
         settings.onChange = { [weak self] in self?.applySettings() }
         settings.onRestoreArchive = { [weak self] in self?.restoreArchive() }
+        settings.onDeleteArchive = { [weak self] in self?.deleteArchive() }
         settings.archive = store.archiveSummary
 
         NSApp.mainMenu = makeMainMenu()
         LoginItem.registerOnFirstLaunch()
         monitor.start()
+        startExpiryTimer()
+    }
+
+    /// The cleared history is deleted a day after the last clear.
+    private func startExpiryTimer() {
+        let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.expire() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        expiryTimer = timer
+    }
+
+    private func expire() {
+        if store.expireArchive(now: Date()) {
+            settings.archive = store.archiveSummary
+        }
     }
 
     private func applySettings() {
@@ -103,7 +122,7 @@ import ClipboardCore
         let alert = NSAlert()
         alert.messageText = "Clear clipboard history?"
         alert.informativeText = "This clears \(count == 1 ? "1 item" : "all \(count) items"). "
-            + "Settings can restore them."
+            + "Settings can restore them for 24 hours."
         alert.addButton(withTitle: "Clear History")
         alert.addButton(withTitle: "Cancel")
         NSApp.activate(ignoringOtherApps: true)
@@ -131,6 +150,11 @@ import ClipboardCore
 
     private func restoreArchive() {
         store.restoreArchive()
+        settings.archive = store.archiveSummary
+    }
+
+    private func deleteArchive() {
+        store.deleteArchive()
         settings.archive = store.archiveSummary
     }
 

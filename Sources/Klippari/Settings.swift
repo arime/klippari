@@ -111,6 +111,8 @@ struct Shortcut: Codable, Equatable {
     var archive: ArchiveSummary?
     /// Restores the cleared history.
     @ObservationIgnored var onRestoreArchive: (() -> Void)?
+    /// Deletes the cleared history for good.
+    @ObservationIgnored var onDeleteArchive: (() -> Void)?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults

@@ -78,6 +78,8 @@ without the mouse.
   last-used time and applies the history size. Only what came back
   leaves the archive: an item that could not be moved stays there, and
   the archive is removed once it is empty.
+- The archive is deleted 24 hours after the last clear, checked at
+  launch and every 15 seconds, or at once with Delete in Settings.
 - Items are ordered by last-used time, newest first.
 
 ## The panel
@@ -262,7 +264,8 @@ instead.
 - **Images**: enlarge the selected image beside the panel. Off by
   default.
 - **Cleared history**: the size of the cleared history and the date
-  of the last clear, with Restore below. The row is shown only while
+  of the last clear, with Restore and Delete below and a note that it
+  is deleted 24 hours after clearing. The row is shown only while
   there is a cleared history.
 
 History size, shortcut, panel position and the panel options are
