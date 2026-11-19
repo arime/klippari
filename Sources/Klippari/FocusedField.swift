@@ -8,15 +8,17 @@ import os
     /// A text field taller than this is treated as an editor, and the
     /// panel goes next to the caret's line instead of the whole field.
     private static let maxFieldHeight: CGFloat = 200
-    /// The longest one Accessibility call may wait for the front app.
-    private static let messagingTimeout: Float = 0.2
-    /// How long an Electron app gets to show its text fields after
-    /// being asked to.
-    private static let exposureBudget: TimeInterval = 0.25
+    /// The longest the whole lookup may take, Electron apps included.
+    /// Past it the panel opens at the pointer.
+    private static let budget: TimeInterval = 0.2
+    /// The longest taking back the request to an Electron app may wait,
+    /// which happens after the lookup.
+    private static let restoreTimeout: Float = 0.05
     private static let manualAccessibility = "AXManualAccessibility" as CFString
-    /// Set when a call timed out. The rest of the lookup is then skipped,
-    /// so a busy app holds up opening the panel for one timeout, not one
-    /// per attribute.
+    /// When the current lookup must be done by.
+    private static var deadline = Date.distantPast
+    /// Set when a call timed out or the time is up. The rest of the
+    /// lookup is then skipped.
     private static var timedOut = false
     /// What each lookup found, at debug level, for apps where the panel
     /// lands in the wrong place: `log show --debug --predicate
@@ -43,9 +45,8 @@ import os
             return nil
         }
         timedOut = false
+        deadline = Date().addingTimeInterval(budget)
         let system = AXUIElementCreateSystemWide()
-        // Never hold up opening the panel for a slow app.
-        AXUIElementSetMessagingTimeout(system, messagingTimeout)
 
         if case .text(let frame) = lookUp(system, app: app) { return frame }
         guard !timedOut, let front, let element = electronAppToExpose(front) else { return nil }
@@ -54,11 +55,14 @@ import os
         // text fields to Accessibility only after being asked to. Ask,
         // look again while the app builds them, and take the request
         // back, so the app is left as it was found.
+        guard setsTimeout(on: element) else { return nil }
         AXUIElementSetAttributeValue(element, manualAccessibility, kCFBooleanTrue)
-        defer { AXUIElementSetAttributeValue(element, manualAccessibility, kCFBooleanFalse) }
-        let deadline = Date().addingTimeInterval(exposureBudget)
-        while !timedOut, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.03)
+        defer {
+            AXUIElementSetMessagingTimeout(element, restoreTimeout)
+            AXUIElementSetAttributeValue(element, manualAccessibility, kCFBooleanFalse)
+        }
+        while !timedOut {
+            Thread.sleep(forTimeInterval: min(0.03, max(deadline.timeIntervalSinceNow, 0)))
             if case .text(let frame) = lookUp(system, app: app) { return frame }
         }
         return nil
@@ -72,7 +76,6 @@ import os
             return .notText
         }
         let element = focused as! AXUIElement
-        AXUIElementSetMessagingTimeout(element, messagingTimeout)
         let role = attribute(element, kAXRoleAttribute) as? String
         let subrole = attribute(element, kAXSubroleAttribute) as? String
         let field = frame(of: element)
@@ -112,13 +115,25 @@ import os
               )
         else { return nil }
         let element = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetMessagingTimeout(element, messagingTimeout)
         if attribute(element, manualAccessibility as String) as? Bool == true { return nil }
         return timedOut ? nil : element
     }
 
+    /// Lets the next call on `element` wait only for what is left of
+    /// the lookup's time. False, and the lookup is over, when none is.
+    private static func setsTimeout(on element: AXUIElement) -> Bool {
+        guard !timedOut else { return false }
+        let left = deadline.timeIntervalSinceNow
+        guard left > 0 else {
+            timedOut = true
+            return false
+        }
+        AXUIElementSetMessagingTimeout(element, Float(left))
+        return true
+    }
+
     private static func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
-        guard !timedOut else { return nil }
+        guard setsTimeout(on: element) else { return nil }
         var value: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(element, name as CFString, &value)
         if result == .cannotComplete { timedOut = true }
@@ -160,7 +175,9 @@ import os
 
     /// The caret's line, or the selection, in Accessibility coordinates.
     private static func caretFrame(of element: AXUIElement) -> CGRect? {
-        guard let range = attribute(element, kAXSelectedTextRangeAttribute) else { return nil }
+        guard let range = attribute(element, kAXSelectedTextRangeAttribute),
+              setsTimeout(on: element)
+        else { return nil }
         var bounds: CFTypeRef?
         let result = AXUIElementCopyParameterizedAttributeValue(
             element, kAXBoundsForRangeParameterizedAttribute as CFString, range, &bounds

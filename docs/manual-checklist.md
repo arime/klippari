@@ -55,7 +55,7 @@ Expected behaviour is defined in `specification.md`.
       side or corner it stays fully on screen. Copying while it is
       open above the pointer grows it upward.
 - [ ] With Position on and a busy or hung app in front, the panel
-      still opens within about half a second, by the pointer.
+      still opens within about 0.2 seconds, by the pointer.
 - [ ] With more than nine items, scrolling the list with the trackpad
       and reopening shows the first row selected and in view.
 
