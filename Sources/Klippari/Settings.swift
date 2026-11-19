@@ -106,10 +106,10 @@ struct Shortcut: Codable, Equatable {
         didSet { defaults.set(magnifyImages, forKey: "magnifyImages") }
     }
 
-    /// The last cleared history, for Settings to offer restoring. Kept up
+    /// The cleared history, for Settings to offer restoring. Kept up
     /// to date by the app; not stored in the preferences.
     var archive: ArchiveSummary?
-    /// Restores the last cleared history.
+    /// Restores the cleared history.
     @ObservationIgnored var onRestoreArchive: (() -> Void)?
 
     init(defaults: UserDefaults = .standard) {

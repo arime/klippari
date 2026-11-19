@@ -27,6 +27,8 @@ Expected behaviour is defined in `specification.md`.
       how many; Settings then shows them under Cleared history, and
       Restore brings them back in order, alongside anything copied
       since.
+- [ ] Clearing, copying something and clearing again keeps both lots:
+      Restore brings back everything from both clears.
 - [ ] The panel looks right in light and dark mode, over light and
       dark windows, including its corners and blur.
 - [ ] An image row shows a thumbnail.

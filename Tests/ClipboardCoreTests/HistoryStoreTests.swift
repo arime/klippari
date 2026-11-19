@@ -150,16 +150,43 @@ func at(_ seconds: TimeInterval) -> Date {
         #expect(store.archiveSummary?.count == 1)
     }
 
-    @Test func aNewArchiveReplacesTheLastOne() {
+    @Test func clearingAgainAddsToTheArchive() {
         let store = makeStore()
         store.add(text("a"), sourceApp: nil, now: at(1))
         store.add(text("b"), sourceApp: nil, now: at(2))
         store.archiveAll(now: at(10))
         store.add(text("c"), sourceApp: nil, now: at(11))
+        #expect(store.archiveAll(now: at(20)) == 1)
+        // Both clears are there, and the date is the last clear's.
+        #expect(store.archiveSummary == ArchiveSummary(count: 3, archivedAt: at(20)))
+        #expect(store.restoreArchive() == 3)
+        #expect(store.items.map(\.content) == [text("c"), text("b"), text("a")])
+    }
+
+    @Test func contentClearedAgainReplacesItsArchivedCopy() {
+        let store = makeStore()
+        store.add(text("a"), sourceApp: nil, now: at(1))
+        store.add(text("b"), sourceApp: nil, now: at(2))
+        store.archiveAll(now: at(10))
+        let newer = store.add(text("a"), sourceApp: nil, now: at(11))
         store.archiveAll(now: at(20))
-        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(20)))
+        #expect(store.archiveSummary == ArchiveSummary(count: 2, archivedAt: at(20)))
         store.restoreArchive()
-        #expect(store.items.map(\.content) == [text("c")])
+        #expect(store.items.map(\.content) == [text("a"), text("b")])
+        #expect(store.items[0].id == newer.id)
+        #expect(store.items[0].lastUsedAt == at(11))
+    }
+
+    @Test func clearingAnItemThatIsOnlyInMemoryLeavesNoEmptyArchive() throws {
+        let store = makeStore()
+        // Saving fails with a file where the storage folder was, so the
+        // item is kept in memory only.
+        try FileManager.default.removeItem(at: root)
+        try Data().write(to: root)
+        store.add(text("a"), sourceApp: nil, now: at(1))
+        #expect(store.archiveAll(now: at(10)) == 1)
+        #expect(store.items.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: store.archiveRoot.path))
     }
 
     @Test func restoreMergesByDateSkipsDuplicatesAndRemovesTheArchive() {
