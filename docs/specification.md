@@ -177,9 +177,9 @@ that matches nothing it shows 'No matches'.
 | Esc | Clear a non-empty filter; otherwise close the panel without pasting. |
 
 The filter matches case-insensitively against an item's text, its file
-names, its source app name and its kind: 'text', 'styled', 'link',
-'file' or 'image', and for an image its format, such as 'png'. The
-first match becomes selected and rows are renumbered.
+names and its source app name. An image, which has no text, also
+matches 'image' and its format, such as 'png'. The first match becomes
+selected and rows are renumbered.
 
 If something is copied while the panel is open, the list updates and
 the selection stays on the same item.

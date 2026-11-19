@@ -152,7 +152,7 @@ import ClipboardCore
         #expect(file.matches("report"))
     }
 
-    @Test func searchMatchesKindOfItem() {
+    @Test func searchFindsImagesByKindAndFormatOnly() {
         let image = row(
             content(TypedData(type: TypeName.png, data: nil)),
             sourceApp: "Preview", imageInfo: ImageInfo(width: 10, height: 10, format: "PNG")
@@ -161,15 +161,16 @@ import ClipboardCore
         #expect(image.matches("png"))
         #expect(!image.matches("link"))
 
+        // Other kinds have no words of their own: 'text' or 'file'
+        // would list nearly everything.
         let link = row(text("https://example.com"))
-        #expect(link.matches("link"))
+        #expect(!link.matches("link"))
         #expect(!link.matches("image"))
-
-        #expect(row(content(typed(TypeName.fileURL, "file:///tmp/a.pdf"))).matches("file"))
-        #expect(row(text("hello")).matches("text"))
+        #expect(!row(content(typed(TypeName.fileURL, "file:///tmp/a.pdf"))).matches("file"))
+        #expect(!row(text("hello")).matches("text"))
         let styled = row(content(typed(TypeName.plainText, "x"), typed(TypeName.rtf, "{rtf}")))
-        #expect(styled.matches("styled"))
-        #expect(styled.matches("text"))
+        #expect(!styled.matches("styled"))
+        #expect(!styled.matches("text"))
     }
 
     @Test func searchReachesBeyondTheFirstLine() {
