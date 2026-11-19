@@ -21,6 +21,8 @@ copied and lets you paste any of them easily from the keyboard.</p>
   disk
 - Never records what a password manager marks as concealed, nor
   anything over 20 MB
+- Keeps other secrets (copies from password apps, API keys and tokens)
+  in memory only, masked, for 10 minutes
 - Pastes an item as it was copied, or as plain text
 - Keeps a cleared history for 24 hours, so a clear can be undone
 - Follows the system light or dark appearance
@@ -200,6 +202,10 @@ items as the history size has room for, newest first, and leaves the
 rest to restore later. Each clear is deleted on its own 24 hours after
 it was made, and the oldest go sooner if the cleared history passes
 1 GB.
+
+Secrets are never written to disk. A copy counts as one when it comes
+from a password app or contains an API key or token in a well-known
+format; it is shown masked and leaves the history after 10 minutes.
 
 ## Icon and screenshots
 
