@@ -40,7 +40,7 @@ import ClipboardCore
 
     @Test @MainActor func pastingAnImageItemDoesNotWriteTheHTMLWrapper() {
         let pasteboard = FakePasteboard()
-        let store = HistoryStore(storage: ItemStorage(root: temporaryRoot()))
+        let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
         let monitor = ClipboardMonitor(pasteboard: pasteboard, store: store, sourceApp: { nil }, now: { at(0) })
         pasteboard.copy(content(png, wrapper, chromeToken))
         monitor.tick()

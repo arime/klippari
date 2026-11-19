@@ -66,10 +66,10 @@ public struct RestoreResult: Equatable, Sendable {
 
     private let storage: ItemStorage
     /// Where clearing the history moves it, so clearing can be
-    /// undone: next to the storage, as '<storage folder>-archive', with
-    /// a folder for each clear.
+    /// undone: next to the storage (see `StorageLocation.archiveRoot`),
+    /// with a folder for each clear.
     public let archiveRoot: URL
-    private var archive: ClearedHistory { ClearedHistory(root: archiveRoot) }
+    private var archive: ClearedHistory { ClearedHistory(root: archiveRoot, cipher: storage.cipher) }
     private static let logger = Logger(subsystem: "com.arime.Klippari", category: "store")
 
     public private(set) var items: [ClipItem]
@@ -87,12 +87,23 @@ public struct RestoreResult: Equatable, Sendable {
 
     public init(storage: ItemStorage, limit: Int = 50) {
         self.storage = storage
-        archiveRoot = storage.root.deletingLastPathComponent()
-            .appendingPathComponent(storage.root.lastPathComponent + "-archive")
+        archiveRoot = StorageLocation.archiveRoot(forItems: storage.root)
         self.limit = limit
+        let archive = ClearedHistory(root: archiveRoot, cipher: storage.cipher)
+        // A flat cleared history takes its date from the folder's
+        // modification time, so it is sorted into a clear before sealing
+        // rewrites anything in it.
+        archive.adoptFlatLayout()
+        // History written before encryption is encrypted before it is
+        // loaded, since loading drops whatever cannot be decrypted. A
+        // clear's date is in its folder's name, so sealing its items
+        // leaves when it expires unchanged.
+        storage.sealPlainItems()
+        for clear in archive.clears() {
+            clear.storage.sealPlainItems()
+        }
         self.items = storage.loadAll()
         trim()
-        archive.adoptFlatLayout()
     }
 
     /// Records a copy. Content identical to an existing item moves that
@@ -133,6 +144,12 @@ public struct RestoreResult: Equatable, Sendable {
         guard let item = items.first(where: { $0.id == id }) else { return nil }
         if item.content.isComplete { return item.content }
         return storage.loadContent(id: id) ?? item.content
+    }
+
+    /// The item's thumbnail PNG; nil for items without one.
+    public func thumbnail(for id: UUID) -> Data? {
+        guard items.contains(where: { $0.id == id }) else { return nil }
+        return storage.thumbnail(for: id)
     }
 
     public func remove(_ id: UUID) {

@@ -14,7 +14,7 @@ func at(_ seconds: TimeInterval) -> Date {
     let root = temporaryRoot()
 
     func makeStore(limit: Int = 50) -> HistoryStore {
-        HistoryStore(storage: ItemStorage(root: root), limit: limit)
+        HistoryStore(storage: ItemStorage(root: root, cipher: testCipher), limit: limit)
     }
 
     /// Adds an item while the storage folder is read-only, so saving it
@@ -365,7 +365,7 @@ func at(_ seconds: TimeInterval) -> Date {
     let root = temporaryRoot()
 
     @Test func deleteRemovesTheArchive() {
-        let store = HistoryStore(storage: ItemStorage(root: root))
+        let store = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
         store.add(text("a"), sourceApp: nil, now: at(0))
         store.archiveAll(now: at(1))
         store.deleteArchive()
@@ -374,7 +374,7 @@ func at(_ seconds: TimeInterval) -> Date {
     }
 
     @Test func eachClearExpires24HoursAfterItWasMade() {
-        let store = HistoryStore(storage: ItemStorage(root: root))
+        let store = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
         let day = HistoryStore.archiveLifetime
         store.add(text("a"), sourceApp: nil, now: at(0))
         store.archiveAll(now: at(10))
@@ -393,7 +393,7 @@ func at(_ seconds: TimeInterval) -> Date {
     }
 
     @Test func theNextExpiryFollowsClearsRestoresAndDeletes() {
-        let store = HistoryStore(storage: ItemStorage(root: root))
+        let store = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
         let day = HistoryStore.archiveLifetime
         #expect(store.nextArchiveExpiry == nil)
         store.add(text("a"), sourceApp: nil, now: at(0))
@@ -417,7 +417,7 @@ func at(_ seconds: TimeInterval) -> Date {
     }
 
     @Test func aClearThatCannotBeDeletedIsTriedAgainAMinuteLater() throws {
-        let store = HistoryStore(storage: ItemStorage(root: root))
+        let store = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
         let day = HistoryStore.archiveLifetime
         store.add(text("a"), sourceApp: nil, now: at(0))
         store.archiveAll(now: at(10))
@@ -441,7 +441,7 @@ func at(_ seconds: TimeInterval) -> Date {
     }
 
     @Test func clearingEveryDayStillExpiresOlderClears() {
-        let store = HistoryStore(storage: ItemStorage(root: root))
+        let store = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
         let day = HistoryStore.archiveLifetime
         for (index, name) in ["a", "b", "c"].enumerated() {
             let time = Double(index) * day * 0.75
@@ -459,13 +459,13 @@ func at(_ seconds: TimeInterval) -> Date {
     }
 
     @Test func aFlatArchiveFromAnEarlierBuildBecomesOneClear() throws {
-        let archiveRoot = root.deletingLastPathComponent().appendingPathComponent("items-archive")
-        let flat = ItemStorage(root: archiveRoot)
+        let archiveRoot = StorageLocation.archiveRoot(forItems: root)
+        let flat = ItemStorage(root: archiveRoot, cipher: testCipher)
         try flat.save(makeItem(text("a"), lastUsed: 1))
         try flat.save(makeItem(text("b"), lastUsed: 2))
         try FileManager.default.setAttributes([.modificationDate: at(5)], ofItemAtPath: archiveRoot.path)
 
-        let store = HistoryStore(storage: ItemStorage(root: root))
+        let store = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
         #expect(store.archiveRoot.path == archiveRoot.path)
         #expect(store.archiveSummary == ArchiveSummary(count: 2, archivedAt: at(5)))
         let names = try FileManager.default.contentsOfDirectory(atPath: archiveRoot.path)
@@ -479,7 +479,7 @@ func at(_ seconds: TimeInterval) -> Date {
     }
 
     @Test func pastTheSizeLimitTheOldestClearsGo() {
-        let store = HistoryStore(storage: ItemStorage(root: root))
+        let store = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
         // Each clear takes a little over 10 000 bytes; two fit.
         store.archiveSizeLimit = 25_000
         for (index, name) in ["a", "b", "c"].enumerated() {
@@ -494,7 +494,7 @@ func at(_ seconds: TimeInterval) -> Date {
     }
 
     @Test func theLastClearIsKeptEvenOverTheSizeLimit() {
-        let store = HistoryStore(storage: ItemStorage(root: root))
+        let store = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
         store.archiveSizeLimit = 100
         store.add(text(String(repeating: "a", count: 10_000)), sourceApp: nil, now: at(0))
         #expect(store.archiveAll(now: at(1)) == 1)
@@ -502,7 +502,7 @@ func at(_ seconds: TimeInterval) -> Date {
     }
 
     @Test func theClearJustMadeIsKeptEvenWhenTheClockWentBack() {
-        let store = HistoryStore(storage: ItemStorage(root: root))
+        let store = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
         store.archiveSizeLimit = 100
         store.add(text(String(repeating: "a", count: 10_000)), sourceApp: nil, now: at(1000))
         store.archiveAll(now: at(1000))

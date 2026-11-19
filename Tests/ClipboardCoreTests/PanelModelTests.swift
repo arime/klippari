@@ -3,7 +3,7 @@ import Testing
 import ClipboardCore
 
 @MainActor @Suite struct PanelModelTests {
-    let store = HistoryStore(storage: ItemStorage(root: temporaryRoot()))
+    let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
 
     /// Adds items so that the last name given ends up newest (row 1).
     func makeModel(_ names: String..., apps: [String: String] = [:]) -> PanelModel {
