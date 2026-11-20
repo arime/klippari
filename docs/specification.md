@@ -126,15 +126,16 @@ without the mouse.
   A focused element counts as a text field by its role, or by a caret
   with a height: with VoiceOver running, Electron apps give buttons an
   empty caret.
-  Electron apps expose their fields only when asked
-  (`AXManualAccessibility`). When one is frontmost and the request
-  reads back as off, Klippari asks, looks again within the same 0.2
-  seconds, and takes the request back, so the app is left as it was
-  found. It leaves the app alone, and the panel goes by the pointer,
-  when VoiceOver is running, when the app reports
-  `AXEnhancedUserInterface` as on (set by assistive apps), when the
-  request is already on, or when it cannot be read: switching it off
-  afterwards could take away accessibility another tool relies on.
+  Electron apps expose their fields only while an assistive app has
+  turned their accessibility on (VoiceOver sets
+  `AXEnhancedUserInterface`). Klippari does not ask for it
+  (`AXManualAccessibility`): the fields appear about two seconds later,
+  far past the 0.2 seconds, the request reads back as off even while it
+  is on, and while it is on the app keeps its whole accessibility tree
+  up to date, which costs it time and memory and can change how it
+  behaves. So in an Electron app the panel goes by the text field when
+  VoiceOver or another assistive app is running, and by the pointer
+  otherwise.
   Opened above the pointer, the card grows upward if the list grows
   while it is open. Where it is dragged to is then not remembered.
 - Each time it opens the list is scrolled so the selected row is in

@@ -8,16 +8,9 @@ import os
     /// A text field taller than this is treated as an editor, and the
     /// panel goes next to the caret's line instead of the whole field.
     private static let maxFieldHeight: CGFloat = 200
-    /// The longest the whole lookup may take, Electron apps included.
-    /// Past it the panel opens at the pointer.
+    /// The longest the whole lookup may take. Past it the panel opens at
+    /// the pointer.
     private static let budget: TimeInterval = 0.2
-    /// The longest taking back the request to an Electron app may wait,
-    /// which happens after the lookup.
-    private static let restoreTimeout: Float = 0.05
-    private static let manualAccessibility = "AXManualAccessibility" as CFString
-    /// Set by VoiceOver and other assistive apps to switch on an app's
-    /// full accessibility support.
-    private static let enhancedUserInterface = "AXEnhancedUserInterface"
     /// When the current lookup must be done by.
     private static var deadline = Date.distantPast
     /// Set when a call timed out or the time is up. The rest of the
@@ -28,57 +21,37 @@ import os
     /// 'subsystem == "com.arime.Klippari" && category == "position"'`.
     private static let logger = Logger(subsystem: "com.arime.Klippari", category: "position")
 
-    private enum Lookup {
-        /// A text field has focus; nil when its frame cannot be used.
-        case text(CGRect?)
-        case notText
-    }
-
     /// The rectangle, in screen coordinates (origin bottom left), to open
     /// the panel next to: the focused text field when it is a small one,
     /// or else the caret's line. Nil when neither can be read: without
     /// the Accessibility permission, with no text field focused, in an
     /// app that does not expose them, or when the app is too busy to
     /// answer in time.
+    ///
+    /// Electron apps, such as Slack, Discord or Claude, expose their text
+    /// fields only while an assistive app such as VoiceOver has asked for
+    /// them. Klippari does not ask (`AXManualAccessibility`): the fields
+    /// appear only about two seconds later, far past the lookup's time,
+    /// and asking makes the app keep its whole accessibility tree up to
+    /// date, which costs it time and memory and can change how it
+    /// behaves. In those apps the panel opens at the pointer.
     static func anchorFrame() -> CGRect? {
-        let front = NSWorkspace.shared.frontmostApplication
-        let app = front?.localizedName ?? "?"
+        let app = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
         guard AXIsProcessTrusted() else {
             logger.debug("\(app, privacy: .public): no Accessibility permission, using the pointer")
             return nil
         }
         timedOut = false
         deadline = Date().addingTimeInterval(budget)
-        let system = AXUIElementCreateSystemWide()
-
-        if case .text(let frame) = lookUp(system, app: app) { return frame }
-        guard !timedOut, let front, let element = electronAppToExpose(front) else { return nil }
-
-        // Electron apps, such as Slack, Discord or Claude, show their
-        // text fields to Accessibility only after being asked to. Ask,
-        // look again while the app builds them, and take the request
-        // back, so the app is left as it was found. This only happens
-        // when the request was known to be off, never with VoiceOver
-        // or another assistive app relying on the app's accessibility.
-        guard setsTimeout(on: element) else { return nil }
-        AXUIElementSetAttributeValue(element, manualAccessibility, kCFBooleanTrue)
-        defer {
-            AXUIElementSetMessagingTimeout(element, restoreTimeout)
-            AXUIElementSetAttributeValue(element, manualAccessibility, kCFBooleanFalse)
-        }
-        while !timedOut {
-            Thread.sleep(forTimeInterval: min(0.03, max(deadline.timeIntervalSinceNow, 0)))
-            if case .text(let frame) = lookUp(system, app: app) { return frame }
-        }
-        return nil
+        return lookUp(AXUIElementCreateSystemWide(), app: app)
     }
 
-    private static func lookUp(_ system: AXUIElement, app: String) -> Lookup {
+    private static func lookUp(_ system: AXUIElement, app: String) -> CGRect? {
         guard let focused = attribute(system, kAXFocusedUIElementAttribute),
               CFGetTypeID(focused) == AXUIElementGetTypeID()
         else {
             logger.debug("\(app, privacy: .public): no focused element, using the pointer")
-            return .notText
+            return nil
         }
         let element = focused as! AXUIElement
         let role = attribute(element, kAXRoleAttribute) as? String
@@ -97,39 +70,19 @@ import os
             || [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole].contains(role ?? "")
         guard isText else {
             logger.debug("\(app, privacy: .public): not a text field, using the pointer")
-            return .notText
+            return nil
         }
 
         if let field, field.height > 0, field.height <= maxFieldHeight {
             logger.debug("\(app, privacy: .public): using the field")
-            return .text(toScreen(field))
+            return toScreen(field)
         }
         if let caret, caret.height > 0 {
             logger.debug("\(app, privacy: .public): using the caret")
-            return .text(toScreen(caret))
+            return toScreen(caret)
         }
         logger.debug("\(app, privacy: .public): no usable frame, using the pointer")
-        return .text(nil)
-    }
-
-    /// The app's Accessibility element when it is an Electron app whose
-    /// request to show its text fields reads back as off. Nil, and the
-    /// app is left alone, when VoiceOver is running, when an assistive
-    /// app has switched on its accessibility (`AXEnhancedUserInterface`),
-    /// when the request is already on, or when it cannot be read, as
-    /// with an Electron version that does not report it: switching it
-    /// off afterwards could then take away what another tool relies on.
-    private static func electronAppToExpose(_ app: NSRunningApplication) -> AXUIElement? {
-        guard !NSWorkspace.shared.isVoiceOverEnabled,
-              let bundle = app.bundleURL,
-              FileManager.default.fileExists(
-                  atPath: bundle.appendingPathComponent("Contents/Frameworks/Electron Framework.framework").path
-              )
-        else { return nil }
-        let element = AXUIElementCreateApplication(app.processIdentifier)
-        if attribute(element, enhancedUserInterface) as? Bool == true { return nil }
-        guard attribute(element, manualAccessibility as String) as? Bool == false else { return nil }
-        return timedOut ? nil : element
+        return nil
     }
 
     /// Lets the next call on `element` wait only for what is left of

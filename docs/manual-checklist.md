@@ -68,23 +68,21 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Reset Panel Position in the menu puts it back in the middle.
 - [ ] With Position on in Settings and Accessibility granted, the
       panel opens just above the text field being typed in, without
-      covering it, wherever the pointer is: in TextEdit, Safari, Notes
-      and an Electron app. In a long document it
+      covering it, wherever the pointer is: in TextEdit, Safari and
+      Notes. In a long document it
       opens by the caret's line. Without a text field it opens just
       above the pointer; near the top of the screen it opens below it; near a
       side or corner it stays fully on screen. Copying while it is
       open above the pointer grows it upward.
 - [ ] With Position on and a busy or hung app in front, the panel
       still opens within about 0.2 seconds, by the pointer.
-- [ ] With Position on and VoiceOver running (Cmd+F5), opening the
-      panel over an Electron app (Slack, Discord, Claude) puts it by
-      the pointer, and after closing it VoiceOver still reads the
-      app's text fields and buttons. Also with focus on something that
-      is not a text field. Turn VoiceOver off afterwards.
-- [ ] With Position on and VoiceOver off, the panel still opens by the
-      text field in each Electron app at hand. If it opens by the
-      pointer in one, note the app and its Electron version: it may not
-      report `AXManualAccessibility`, which Klippari then leaves alone.
+- [ ] With Position on and VoiceOver off, the panel opens by the
+      pointer over an Electron app (Slack, Discord, Claude), and the
+      app stays as quick as before.
+- [ ] With Position on and VoiceOver running (Cmd+F5), the panel opens
+      by the text field in an Electron app, and by the pointer when
+      focus is on a button. After closing it VoiceOver still reads the
+      app's text fields and buttons. Turn VoiceOver off afterwards.
 - [ ] With more than nine items, scrolling the list with the trackpad
       and reopening shows the first row selected and in view.
 
