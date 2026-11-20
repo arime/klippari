@@ -87,8 +87,13 @@ import ClipboardCore
     /// once when selected or hovered.
     func preload(_ ids: some Sequence<UUID>) {
         let wanted = Array(ids)
-        // Forget the failures of items no longer listed.
-        failed.formIntersection(wanted)
+        // Forget items no longer listed: their failures, and their
+        // decrypted previews, so a deleted or cleared image does not
+        // stay in memory.
+        let listed = Set(wanted)
+        failed.formIntersection(listed)
+        cache = cache.filter { listed.contains($0.key) }
+        cacheOrder.removeAll { !listed.contains($0) }
         for id in wanted.prefix(Self.cacheLimit) where cache[id] == nil {
             load(id)
         }
