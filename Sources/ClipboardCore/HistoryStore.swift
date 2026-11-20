@@ -272,12 +272,6 @@ public struct RestoreResult: Equatable, Sendable {
         return result
     }
 
-    public func clear() {
-        items.removeAll()
-        storage.deleteAll()
-        onChange?()
-    }
-
     /// Moves an item to the top. Only its manifest is rewritten; the data
     /// files, which can be large, are left alone.
     @discardableResult

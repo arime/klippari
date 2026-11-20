@@ -109,15 +109,6 @@ func at(_ seconds: TimeInterval) -> Date {
         #expect(itemsOnDisk() == 1)
     }
 
-    @Test func clearEmptiesEverything() {
-        let store = makeStore()
-        store.add(text("a"), sourceApp: nil, now: at(1))
-        store.add(text("b"), sourceApp: nil, now: at(2))
-        store.clear()
-        #expect(store.items.isEmpty)
-        #expect(itemsOnDisk() == 0)
-    }
-
     @Test func persistsAcrossInstances() {
         let first = makeStore()
         first.add(text("a"), sourceApp: "Notes", now: at(1))
@@ -134,7 +125,7 @@ func at(_ seconds: TimeInterval) -> Date {
         store.markUsed(a.id, now: at(3))
         store.remove(a.id)
         store.limit = 10
-        store.clear()
+        store.archiveAll(now: at(4))
         #expect(count == 6)
     }
 
