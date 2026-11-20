@@ -177,21 +177,9 @@ import os
         }
         alert.addButton(withTitle: "Reset Saved History")
         alert.addButton(withTitle: "Cancel")
-        // Return cancels: deleting is never the default.
-        alert.buttons[0].hasDestructiveAction = true
-        alert.buttons[0].keyEquivalent = ""
-        alert.buttons[1].keyEquivalent = "\r"
-        // A button has one key equivalent, and Cancel's was Escape. Escape
-        // still cancels, as in every other alert.
-        let escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak alert] event in
-            guard let alert, event.keyCode == 53, event.window === alert.window else { return event }
-            alert.buttons[1].performClick(nil)
-            return nil
-        }
+        Self.neverDeleteByDefault(alert)
         NSApp.activate(ignoringOtherApps: true)
-        let response = alert.runModal()
-        if let escape { NSEvent.removeMonitor(escape) }
-        guard response == .alertFirstButtonReturn else { return }
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
         do {
             try resetSavedHistory()
         } catch {
@@ -203,6 +191,13 @@ import os
                 + "\n\nHistory is still not being saved."
             failure.runModal()
         }
+    }
+
+    /// For an alert whose first button deletes: that button gets no key,
+    /// so Return does nothing, and Cancel keeps Escape.
+    private static func neverDeleteByDefault(_ alert: NSAlert) {
+        alert.buttons[0].hasDestructiveAction = true
+        alert.buttons[0].keyEquivalent = ""
     }
 
     /// Deletes the saved items that cannot be read and moves this run's
@@ -294,7 +289,7 @@ import os
             + "This cannot be undone."
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
-        alert.buttons[0].hasDestructiveAction = true
+        Self.neverDeleteByDefault(alert)
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         store.removeUnreadableItems(countingPlain: KeyCheck.exists(in: StorageLocation.defaultFolder))
