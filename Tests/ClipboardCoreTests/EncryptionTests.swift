@@ -425,6 +425,16 @@ func permissions(_ url: URL) -> Int? {
         #expect(store.items.map(\.content) == [text("old")])
     }
 
+    @Test func anInterruptedSaveInAClearIsCleanedUpAtLaunch() throws {
+        let clear = StorageLocation.archiveRoot(forItems: root).appendingPathComponent("20261120T060413Z")
+        try writePlainItem(in: clear, text: "cleared")
+        let leftover = clear.appendingPathComponent(".tmp-\(UUID().uuidString)")
+        try writePlainItem(in: leftover, text: "half saved")
+        _ = makeStore()
+        #expect(!FileManager.default.fileExists(atPath: leftover.path))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: clear.path).count == 1)
+    }
+
     @Test func clearedItemsSealedWithAnotherKeyAreNotCounted() throws {
         let archive = StorageLocation.archiveRoot(forItems: root)
         let older = try Date("2026-11-20T06:04:13Z", strategy: .iso8601)
