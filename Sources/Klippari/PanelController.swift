@@ -139,6 +139,8 @@ private final class HistoryPanel: NSPanel {
     private func refreshPreview() {
         guard settings.magnifyImages else {
             preview.hide()
+            // Nothing is listed for previews: let go of the decrypted ones.
+            preview.preload([])
             if !focus.rowFrames.isEmpty { focus.rowFrames = [:] }
             return
         }
