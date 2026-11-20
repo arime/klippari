@@ -425,6 +425,26 @@ func permissions(_ url: URL) -> Int? {
         #expect(store.items.map(\.content) == [text("old")])
     }
 
+    @Test func clearedItemsSealedWithAnotherKeyAreNotCounted() throws {
+        let archive = StorageLocation.archiveRoot(forItems: root)
+        let older = try Date("2026-11-20T06:04:13Z", strategy: .iso8601)
+        let newer = try Date("2026-11-20T07:00:00Z", strategy: .iso8601)
+        let other = ItemCipher.ephemeral()
+        try ItemStorage(root: archive.appendingPathComponent("20261120T060413Z"), cipher: testCipher)
+            .save(makeItem(text("ours")))
+        try ItemStorage(root: archive.appendingPathComponent("20261120T060413Z"), cipher: other)
+            .save(makeItem(text("theirs, same clear")))
+        try ItemStorage(root: archive.appendingPathComponent("20261120T070000Z"), cipher: other)
+            .save(makeItem(text("theirs, newer clear")))
+        let store = makeStore()
+        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: older))
+        #expect(store.restoreArchive() == RestoreResult(restored: 1, noRoom: 0))
+        #expect(store.archiveSummary == nil)
+        // Unread, but not deleted before the newer clear expires.
+        #expect(store.expireArchive(now: newer) == false)
+        #expect(ItemStorage.holdsSealedItems(archive))
+    }
+
     @Test func sealingAClearKeepsItsDate() throws {
         let clear = StorageLocation.archiveRoot(forItems: root).appendingPathComponent("20261120T060413Z")
         try writePlainItem(in: clear, text: "cleared")

@@ -125,11 +125,15 @@ struct ClearedHistory {
 
     /// How many items there are and when the last clear was made; nil
     /// when nothing is cleared.
+    /// Only items that open with the key are counted, since only those
+    /// can be restored; one sealed with another key waits for its clear
+    /// to expire.
     var summary: ArchiveSummary? {
-        let clears = clears()
-        let count = clears.reduce(0) { $0 + Self.itemCount(in: $1.storage.root) }
-        guard count > 0, let last = clears.last else { return nil }
-        return ArchiveSummary(count: count, archivedAt: last.date, clears: clears.count)
+        let counted = clears().map { (clear: $0, count: $0.storage.readableItemCount()) }.filter { $0.count > 0 }
+        guard let last = counted.last else { return nil }
+        return ArchiveSummary(
+            count: counted.reduce(0) { $0 + $1.count }, archivedAt: last.clear.date, clears: counted.count
+        )
     }
 
     private static func itemCount(in folder: URL) -> Int {
