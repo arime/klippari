@@ -131,6 +131,9 @@ Expected behaviour is defined in `specification.md`.
       the default; Return and Escape both cancel. After Reset the old files are gone, the two menu
       lines and the footer warning disappear, what was copied since
       launch is still listed, and it is still there after a relaunch.
+- [ ] Deny on the keychain prompt at launch: the menu says history
+      isn't being saved, and Try Again, then Always Allow, opens the
+      saved history with this run's copies in it.
 - [ ] With a different 'Klippari history key' put in the keychain (an
       older keychain restored, say), Klippari relaunched says 'The key
       in the keychain doesn't open it', keeps the old files, and

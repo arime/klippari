@@ -8,6 +8,7 @@ import AppKit
 
     private let unsavedItem = NSMenuItem(title: "History isn't being saved", action: nil, keyEquivalent: "")
     private let unsavedReasonItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let tryAgainItem = NSMenuItem(title: "Try Again", action: #selector(tryAgain), keyEquivalent: "")
     private let resetSavedItem = NSMenuItem(
         title: "Reset Saved History…", action: #selector(resetSavedHistory), keyEquivalent: ""
     )
@@ -25,6 +26,8 @@ import AppKit
     }
 
     var onDeleteUnreadableItems: (() -> Void)?
+    /// Called for Try Again, offered while the history is not saved.
+    var onTryAgain: (() -> Void)?
 
     /// Why the history is not being saved this run, or nil when it is.
     /// The menu then says so at its top, in two disabled lines.
@@ -51,6 +54,9 @@ import AppKit
         menu.addItem(unsavedItem)
         unsavedReasonItem.indentationLevel = 1
         menu.addItem(unsavedReasonItem)
+        tryAgainItem.target = self
+        tryAgainItem.toolTip = "Open the saved history again, as a relaunch would"
+        menu.addItem(tryAgainItem)
         resetSavedItem.target = self
         menu.addItem(resetSavedItem)
         menu.addItem(unsavedSeparator)
@@ -101,6 +107,7 @@ import AppKit
         unsavedItem.isHidden = unsaved == nil
         unsavedReasonItem.isHidden = unsaved == nil
         unsavedSeparator.isHidden = unsaved == nil
+        tryAgainItem.isHidden = unsaved == nil
         switch unsaved {
         case .missingKey, .wrongKey: resetSavedItem.isHidden = false
         default: resetSavedItem.isHidden = true
@@ -132,6 +139,10 @@ import AppKit
 
     @objc private func resetSavedHistory() {
         onResetSavedHistory?()
+    }
+
+    @objc private func tryAgain() {
+        onTryAgain?()
     }
 
     @objc private func deleteUnreadableItems() {

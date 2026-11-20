@@ -62,6 +62,9 @@ unless Position is on in Settings.
 The menu bar icon has:
 
 - **Pause/Resume Capture**: stop and restart recording.
+- **Try Again**: only shown while the history isn't being saved. Opens
+  the saved history again, as a relaunch would, after the keychain
+  refused (Deny clicked by mistake) or the key was missing.
 - **Reset Saved History…**: only shown when the saved history cannot
   be read because its key is gone from the keychain, or the keychain
   holds another key. Deletes what cannot be read, after a
@@ -167,7 +170,8 @@ the history tells Klippari whether the key in the keychain is the
 history's, so a key replaced by another app is noticed and not used.
 If the key cannot be had, the
 saved history is left as it is, and the menu and the panel say that
-history isn't being saved until it can. Spotlight and backups skip the
+history isn't being saved. Try Again in the menu, or a relaunch, opens
+it once the key can be had. Spotlight and backups skip the
 folder. Settings are in the preferences of `com.arime.Klippari`.
 
 Clearing the history moves it to a folder for that clear in

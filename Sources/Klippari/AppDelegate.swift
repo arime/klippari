@@ -35,6 +35,7 @@ import os
         statusItem.unsaved = unsaved
         statusItem.onResetSavedHistory = { [weak self] in self?.confirmResetSavedHistory() }
         statusItem.onDeleteUnreadableItems = { [weak self] in self?.confirmDeleteUnreadableItems() }
+        statusItem.onTryAgain = { [weak self] in self?.tryAgain() }
         statusItem.unreadable = unreadableItems.count
         statusItem.onOpenSettings = { [weak self] in self?.settingsWindow.show() }
         statusItem.onClearHistory = { [weak self] in self?.confirmClearHistory() }
@@ -249,6 +250,20 @@ import os
         open(storage, takingOver: store)
         if let temporary {
             try? FileManager.default.removeItem(at: temporary.deletingLastPathComponent())
+        }
+    }
+
+    /// Try Again: opens the saved history as a relaunch would, after
+    /// the keychain refused (Deny clicked by mistake, or a locked
+    /// keychain) or the key was missing. This run's history moves into
+    /// it. If it still cannot be opened, the menu gives the reason.
+    private func tryAgain() {
+        do {
+            try reopenSavedHistory()
+        } catch {
+            Self.logger.error("History is still not saved: \(String(describing: error), privacy: .public)")
+            stillUnsaved(error)
+            NSSound.beep()
         }
     }
 

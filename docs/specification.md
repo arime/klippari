@@ -65,7 +65,9 @@ without the mouse.
   the saved history is left alone. While that lasts the app says so:
   the menu bar menu starts with the disabled lines 'History isn't being
   saved' and the reason, and the panel's footer shows the same in
-  place of the key hints.
+  place of the key hints. Try Again in the menu opens the saved
+  history as a launch would and moves the run's history into it; if
+  it still cannot be opened, the reason is updated.
 - When the reason is a missing key, the menu also offers Reset Saved
   History…. After a confirmation that says the old history cannot be
   read and will be deleted, it deletes every sealed item in
