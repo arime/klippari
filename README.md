@@ -63,8 +63,9 @@ The menu bar icon has:
 
 - **Pause/Resume Capture**: stop and restart recording.
 - **Reset Saved History…**: only shown when the saved history cannot
-  be read because its key is gone from the keychain. Deletes it, after
-  a confirmation, and starts saving again with a new key.
+  be read because its key is gone from the keychain. Deletes what that
+  key encrypted, after a confirmation, and starts saving again with a
+  new key.
 - **Clear History**: clear every item, after a confirmation. Settings
   can restore what was cleared.
 - **Reset Panel Position**: put the panel back in the middle.

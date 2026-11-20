@@ -157,7 +157,7 @@ import os
         }
     }
 
-    /// Deletes the saved history that cannot be read, makes a new key and
+    /// Deletes the saved items that cannot be read, makes a new key and
     /// moves this run's history into the saved folder, without a restart.
     private func resetSavedHistory() throws {
         let items = StorageLocation.itemsRoot(in: StorageLocation.defaultFolder)
@@ -169,11 +169,15 @@ import os
             // nothing is deleted.
             key = stored
         } else {
-            let fm = FileManager.default
-            for folder in [items, archive] where fm.fileExists(atPath: folder.path) {
-                try fm.removeItem(at: folder)
+            // Only what was sealed with the lost key goes. Items still in
+            // plain form (a migration that did not finish, or version 1.0
+            // run again) are readable; opening the history below encrypts
+            // them with the new key. Should anything sealed be left, no
+            // key is made.
+            for folder in [items, archive] {
+                try ItemStorage.removeSealedItems(folder)
             }
-            key = try KeychainKey.create()
+            key = try ItemCipher.key(stored: nil, sealedHistoryIn: [items, archive], create: KeychainKey.create)
         }
 
         let temporary = unsavedRoot
