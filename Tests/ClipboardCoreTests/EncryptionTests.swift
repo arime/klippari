@@ -291,7 +291,7 @@ func permissions(_ url: URL) -> Int? {
         saved.adopt(unsaved)
         #expect(saved.items.map(\.id) == unsaved.items.map(\.id))
         #expect(saved.fullContent(for: image.id) == png)
-        #expect(saved.thumbnail(for: image.id) != nil)
+        #expect(ItemStorage(root: root, cipher: testCipher).thumbnail(for: image.id) != nil)
 
         // Saved for good under the new key.
         let reopened = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
