@@ -165,14 +165,28 @@ Reading the clipboard in the background needs no permission.
 History is kept in `~/Library/Application Support/Klippari/items.noindex`,
 one folder per item, readable only by you and encrypted with a key kept
 in your login keychain. Other apps that ask the keychain for that key
-make macOS ask you first; deny them. A small `key-check` file beside
-the history tells Klippari whether the key in the keychain is the
-history's, so a key replaced by another app is noticed and not used.
-If the key cannot be had, the
-saved history is left as it is, and the menu and the panel say that
-history isn't being saved. Try Again in the menu, or a relaunch, opens
-it once the key can be had. Spotlight and backups skip the
-folder. Settings are in the preferences of `com.arime.Klippari`.
+make macOS ask you first; deny them. That prompt guards reading the
+key, not replacing it, so a small `key-check` file beside the history
+tells Klippari whether the key in the keychain is still the history's:
+a key replaced by another app is noticed and not used.
+
+The keychain lets the build that made the key read it without asking.
+A Mac that first ran a differently signed build of Klippari (a dev
+build, say) asks once when it moves to the release; choose Always
+Allow.
+
+If the key cannot be had, the saved history is left as it is, and the
+menu and the panel say that history isn't being saved. Try Again in
+the menu, or a relaunch, opens it once the key can be had. Spotlight
+and backups skip the folder. Settings are in the preferences of
+`com.arime.Klippari`.
+
+What the encryption does not hide: how large each item is, how many
+types it has, whether it is an image, and when it was last used or
+cleared. Files are bound to their item, but nothing stops a program
+running as you from deleting an item or putting back an older copy
+of one. A history from version 1.0 was plain, so copies of it in
+earlier backups or snapshots stay readable.
 
 Clearing the history moves it to a folder for that clear in
 `items-archive.noindex` next to it, beside what was cleared before,
