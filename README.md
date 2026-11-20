@@ -48,13 +48,14 @@ Requires macOS 15 or later, on Apple silicon or Intel.
 | Return                     | Paste the selected item as it was copied  |
 | Shift+Return               | Paste it as plain text                    |
 | Cmd+1 to Cmd+9             | Paste that row straight away              |
-| Typing                     | Filter by text, file name or source app   |
+| Typing                     | Filter by text, file name or source app; `image` or `png` lists images |
 | Cmd+Backspace              | Remove the selected item from the history |
 | Shift+Cmd+Backspace        | Clear the history (restorable in Settings) |
 | Esc                        | Clear the filter, then close              |
 
 The panel shows up to nine rows and scrolls beyond that. Drag it by
-its search row or footer to move it. It reopens where you left it.
+its search row or footer to move it. It reopens where you left it,
+unless Position is on in Settings.
 
 ## Menu bar and settings
 
@@ -64,8 +65,12 @@ The menu bar icon has:
 - **Clear History**: clear every item, after a confirmation. Settings
   can restore what was cleared for 24 hours.
 - **Reset Panel Position**: put the panel back in the middle.
-- **Settings…**: history size (5 to 500 items), the shortcut, and
-  start at login.
+- **Settings…**: history size (5 to 500 items), the shortcut, start at
+  login, and three panel options, all off by default: **Mouse** (point
+  at a row to select it, click to paste), **Position** (open next to
+  the text field being typed in, or else the pointer) and **Images**
+  (enlarge the selected image beside the panel). After a clear,
+  **Cleared history** offers Restore and Delete.
 - **Quit Klippari**.
 
 To change the shortcut, select the field in Settings, press Return and
