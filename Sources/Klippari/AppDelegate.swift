@@ -137,7 +137,7 @@ import os
         alert.informativeText = "The saved history was encrypted with a key that is no longer in your "
             + "keychain, so Klippari cannot read it. Resetting deletes it, and the cleared history with it, "
             + "and starts saving again with a new key. This cannot be undone. "
-            + "What you have copied since Klippari started is kept."
+            + "What is in the history now is kept, but not what was cleared since Klippari started."
         alert.addButton(withTitle: "Reset Saved History")
         alert.addButton(withTitle: "Cancel")
         // Return cancels: deleting is never the default.
