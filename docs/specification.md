@@ -69,9 +69,10 @@ without the mouse.
   History…. After a confirmation that says the old history cannot be
   read and will be deleted, it deletes every sealed item in
   `items.noindex` and the archive, makes a new key and goes on saving,
-  without a restart; what was copied during the run is saved under the
-  new key. Items still in plain form need no key: they are kept and
-  encrypted with the new one.
+  without a restart; what is in the history then is saved under the
+  new key, while what was cleared during the run is not kept. Items
+  still in plain form need no key: they are kept and encrypted with
+  the new one.
   If the key has come back by then, nothing is deleted and the saved
   history opens with it.
 - Spotlight and backups are kept out: the folder names end in
