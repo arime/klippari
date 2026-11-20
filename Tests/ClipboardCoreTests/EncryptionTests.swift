@@ -334,18 +334,33 @@ func permissions(_ url: URL) -> Int? {
         FileManager.default.temporaryDirectory.appendingPathComponent("KlippariLocation-\(UUID().uuidString)")
     }
 
-    @Test func anUnsavedRunGetsANewFolderAndEarlierOnesGo() throws {
+    @Test func anUnsavedRunGetsANewFolderOfItsOwn() throws {
         let caches = makeFolder()
-        let fm = FileManager.default
         let first = StorageLocation.unsavedItemsRoot(in: caches)
-        try writePlainItem(in: first, text: "from a run that did not end cleanly")
-        let other = caches.appendingPathComponent("something else")
-        try fm.createDirectory(at: other, withIntermediateDirectories: true)
         let second = StorageLocation.unsavedItemsRoot(in: caches)
         #expect(second != first)
-        #expect(!fm.fileExists(atPath: first.deletingLastPathComponent().path))
-        #expect(fm.fileExists(atPath: other.path))
         #expect(second.deletingLastPathComponent().lastPathComponent.hasSuffix(".noindex"))
+        let owner = try String(contentsOf: first.deletingLastPathComponent().appendingPathComponent("owner"), encoding: .utf8)
+        #expect(owner == String(getpid()))
+    }
+
+    @Test func onlyAbandonedUnsavedFoldersAreRemoved() throws {
+        let caches = makeFolder()
+        let fm = FileManager.default
+        let mine = StorageLocation.unsavedItemsRoot(in: caches).deletingLastPathComponent()
+        let ended = caches.appendingPathComponent("unsaved-ended.noindex")
+        try fm.createDirectory(at: ended, withIntermediateDirectories: true)
+        try Data("4242".utf8).write(to: ended.appendingPathComponent("owner"))
+        let ownerless = caches.appendingPathComponent("unsaved-from-an-earlier-build")
+        try fm.createDirectory(at: ownerless, withIntermediateDirectories: true)
+        let other = caches.appendingPathComponent("something else")
+        try fm.createDirectory(at: other, withIntermediateDirectories: true)
+
+        StorageLocation.removeAbandonedUnsaved(in: caches) { $0 == getpid() }
+        #expect(fm.fileExists(atPath: mine.path))
+        #expect(!fm.fileExists(atPath: ended.path))
+        #expect(!fm.fileExists(atPath: ownerless.path))
+        #expect(fm.fileExists(atPath: other.path))
     }
 
     @Test func archiveSitsNextToItems() {
