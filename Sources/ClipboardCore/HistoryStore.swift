@@ -100,6 +100,7 @@ public struct RestoreResult: Equatable, Sendable {
         // it expires unchanged.
         storage.sealPlainItems()
         for clear in archive.clears() {
+            clear.storage.removeLeftovers()
             clear.storage.sealPlainItems()
         }
         self.items = storage.loadAll()

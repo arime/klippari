@@ -267,6 +267,17 @@ public struct ItemStorage: Sendable {
         return items.sorted { $0.lastUsedAt > $1.lastUsedAt }
     }
 
+    /// Deletes what an interrupted save left behind: its hidden
+    /// temporary directories. Loading the history does this as it goes;
+    /// a clear's folder is not loaded until it is restored, so it is
+    /// done there at launch.
+    public func removeLeftovers() {
+        let fm = FileManager.default
+        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] where name.hasPrefix(Self.temporaryPrefix) {
+            try? fm.removeItem(at: root.appendingPathComponent(name))
+        }
+    }
+
     /// How many items have a manifest that opens with the key. Reads
     /// only manifests and changes nothing on disk.
     public func readableItemCount() -> Int {
