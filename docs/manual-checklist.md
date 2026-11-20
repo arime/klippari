@@ -135,6 +135,10 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Deny on the keychain prompt at launch: the menu says history
       isn't being saved, and Try Again, then Always Allow, opens the
       saved history with this run's copies in it.
+- [ ] Over a 1.0 history with a few hundred items, large images among
+      them: the menu bar icon answers at once, the menu says
+      'Encrypting the saved history…' until the history opens, and
+      the shortcut works from then on.
 - [ ] With a different 'Klippari history key' put in the keychain (an
       older keychain restored, say), Klippari relaunched says 'The key
       in the keychain doesn't open it', keeps the old files, and

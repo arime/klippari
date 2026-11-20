@@ -99,7 +99,11 @@ without the mouse.
 - Version 1.0 kept the history as plain files in `items`, and builds
   before encryption kept the cleared history in `items-archive`. On
   launch these are renamed to their `.noindex` names and every plain
-  item is encrypted in place, in each clear's folder too. A plain item
+  item is encrypted in place, in each clear's folder too. This runs off
+  the main thread before the history opens: meanwhile the menu says
+  'Encrypting the saved history…', the shortcut is not yet registered
+  and copies are not recorded (after Try Again or Reset, the run's
+  history keeps recording until it is taken over). A plain item
   whose data cannot be read whole is removed; a manifest that is
   neither sealed nor plain JSON is left alone; an item that cannot be
   saved (a full disk) is left as it is and tried again on the next

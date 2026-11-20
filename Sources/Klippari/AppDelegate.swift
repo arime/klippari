@@ -23,29 +23,39 @@ import os
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         StorageLocation.removeAbandonedUnsaved(in: StorageLocation.defaultCaches)
-        open(openStorage())
+        settingsWindow = SettingsWindowController(settings: settings)
+        statusItem = StatusItemController(settings: settings)
+        statusItem.onOpenSettings = { [weak self] in self?.settingsWindow.show() }
+        statusItem.onResetPanelPosition = { [weak self] in self?.settings.panelPlacement = nil }
+        NSApp.mainMenu = makeMainMenu()
+        LoginItem.registerOnFirstLaunch()
+
+        let storage = openStorage()
+        statusItem.unsaved = unsaved
+        // What needs the history waits for it: encrypting a 1.0 history
+        // happens off the main thread first, and takes a while for a
+        // large one.
+        open(storage) { [weak self] in self?.finishLaunching() }
+    }
+
+    /// The rest of launching, once the history is open.
+    private func finishLaunching() {
         hotKey = HotKey(shortcut: settings.shortcut) { [weak self] in
             self?.hotKeyPressed()
         }
         registeredShortcut = settings.shortcut
         settings.shortcutUnavailable = !hotKey.isRegistered
 
-        settingsWindow = SettingsWindowController(settings: settings)
-        statusItem = StatusItemController(settings: settings)
-        statusItem.unsaved = unsaved
         statusItem.onResetSavedHistory = { [weak self] in self?.confirmResetSavedHistory() }
         statusItem.onDeleteUnreadableItems = { [weak self] in self?.confirmDeleteUnreadableItems() }
         statusItem.onTryAgain = { [weak self] in self?.tryAgain() }
-        statusItem.unreadable = unreadableItems.count
-        statusItem.onOpenSettings = { [weak self] in self?.settingsWindow.show() }
         statusItem.onClearHistory = { [weak self] in self?.confirmClearHistory() }
-        statusItem.onResetPanelPosition = { [weak self] in self?.settings.panelPlacement = nil }
         settings.onChange = { [weak self] in self?.applySettings() }
         settings.onRestoreArchive = { [weak self] in self?.restoreArchive() }
         settings.onDeleteArchive = { [weak self] in self?.deleteArchive() }
+        // Settings changed while the history was being encrypted.
+        applySettings()
 
-        NSApp.mainMenu = makeMainMenu()
-        LoginItem.registerOnFirstLaunch()
         // Timers do not fire while the Mac sleeps, and may fire late
         // after: look again on waking.
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -56,15 +66,43 @@ import os
     }
 
     /// Builds the history, the monitor and the panel on `storage`. Called
-    /// at launch, and again when Reset Saved History moves the history
-    /// from this run's temporary folder to the saved one: `previous` is
+    /// at launch, and again when Try Again or Reset Saved History moves
+    /// the history from this run's folder to the saved one: `previous` is
     /// then the history so far, which is taken over.
-    private func open(_ storage: ItemStorage, takingOver previous: HistoryStore? = nil) {
+    ///
+    /// A saved history still holding 1.0 items is encrypted first, off
+    /// the main thread. The menu says so meanwhile, and the previous
+    /// history, if any, goes on capturing until the new one takes over.
+    /// `then` runs once the history is open.
+    private func open(
+        _ storage: ItemStorage, takingOver previous: HistoryStore? = nil, then: @escaping () -> Void = {}
+    ) {
+        let folder = StorageLocation.defaultFolder
+        let migrating = unsaved == nil && !KeyCheck.exists(in: folder)
+        guard migrating, ItemStorage.holdsPlainItems(in: [storage.root, StorageLocation.archiveRoot(forItems: storage.root)]) else {
+            if migrating { writeKeyCheck(storage) }
+            build(storage, takingOver: previous)
+            then()
+            return
+        }
+        statusItem.encrypting = true
+        Task { [weak self] in
+            let done = await Task.detached(priority: .userInitiated) {
+                HistoryStore.sealPlainHistory(storage)
+            }.value
+            guard let self else { return }
+            statusItem.encrypting = false
+            // Written once nothing plain is left: from then on, plain
+            // items no longer belong to the history.
+            if done { writeKeyCheck(storage) }
+            build(storage, takingOver: previous)
+            then()
+        }
+    }
+
+    private func build(_ storage: ItemStorage, takingOver previous: HistoryStore?) {
         monitor?.stop()
         panel?.hide()
-        if unsaved == nil {
-            sealPlainHistory(storage)
-        }
         store = HistoryStore(storage: storage, limit: settings.historyLimit, sealingPlainItems: false)
         if let previous { store.adopt(previous) }
         store.expireArchive(now: Date())
@@ -85,18 +123,11 @@ import os
         monitor.start()
     }
 
-    /// Encrypts the 1.0 history, until the key check says that is done.
-    /// The key check is written once nothing plain is left: from then
-    /// on, plain items no longer belong to the history.
-    private func sealPlainHistory(_ storage: ItemStorage) {
-        let folder = StorageLocation.defaultFolder
-        guard !KeyCheck.exists(in: folder) else { return }
-        if HistoryStore.sealPlainHistory(storage) {
-            do {
-                try KeyCheck.write(storage.cipher, in: folder)
-            } catch {
-                Self.logger.error("Could not write the key check: \(String(describing: error), privacy: .public)")
-            }
+    private func writeKeyCheck(_ storage: ItemStorage) {
+        do {
+            try KeyCheck.write(storage.cipher, in: StorageLocation.defaultFolder)
+        } catch {
+            Self.logger.error("Could not write the key check: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -242,9 +273,12 @@ import os
         unsaved = nil
         unsavedRoot = nil
         statusItem.unsaved = nil
-        open(storage, takingOver: store)
-        if let temporary {
-            try? FileManager.default.removeItem(at: temporary.deletingLastPathComponent())
+        // This run's folder goes once its items have been taken over,
+        // which may be after the saved history has been encrypted.
+        open(storage, takingOver: store) {
+            if let temporary {
+                try? FileManager.default.removeItem(at: temporary.deletingLastPathComponent())
+            }
         }
     }
 

@@ -6,6 +6,7 @@ import AppKit
     private let settings: Settings
     private let pauseItem = NSMenuItem(title: "Pause Capture", action: #selector(togglePause), keyEquivalent: "")
 
+    private let encryptingItem = NSMenuItem(title: "Encrypting the saved history…", action: nil, keyEquivalent: "")
     private let unsavedItem = NSMenuItem(title: "History isn't being saved", action: nil, keyEquivalent: "")
     private let unsavedReasonItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let tryAgainItem = NSMenuItem(title: "Try Again", action: #selector(tryAgain), keyEquivalent: "")
@@ -22,6 +23,12 @@ import AppKit
     /// How many items on disk the key cannot open while the history is
     /// saved. The menu then says so, and offers to delete them.
     var unreadable = 0 {
+        didSet { refresh() }
+    }
+
+    /// True while the 1.0 history is being encrypted, before the history
+    /// opens. The menu then says so at its top.
+    var encrypting = false {
         didSet { refresh() }
     }
 
@@ -50,7 +57,8 @@ import AppKit
 
         let menu = NSMenu()
         menu.delegate = self
-        // Neither has an action, so the menu shows them disabled.
+        // None has an action, so the menu shows them disabled.
+        menu.addItem(encryptingItem)
         menu.addItem(unsavedItem)
         unsavedReasonItem.indentationLevel = 1
         menu.addItem(unsavedReasonItem)
@@ -104,6 +112,7 @@ import AppKit
 
     /// Dims the icon while capture is paused.
     func refresh() {
+        encryptingItem.isHidden = !encrypting
         unsavedItem.isHidden = unsaved == nil
         unsavedReasonItem.isHidden = unsaved == nil
         unsavedSeparator.isHidden = unsaved == nil
