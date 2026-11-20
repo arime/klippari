@@ -125,11 +125,10 @@ public struct ItemStorage: Sendable {
     }
 
     /// Moves every item into `archive`, adding to what is already there;
-    /// an item whose id is there already replaces that one. The archive's
-    /// date is set to `date` when anything moved. Each item moves on its
-    /// own, so one that cannot be moved stays here and is reported in
-    /// `left`, and the rest are still archived.
-    public func archiveAll(to archive: ItemStorage, at date: Date) -> (moved: Set<UUID>, left: Set<UUID>) {
+    /// an item whose id is there already replaces that one. Each item
+    /// moves on its own, so one that cannot be moved stays here and is
+    /// reported in `left`, and the rest are still archived.
+    public func archiveAll(to archive: ItemStorage) -> (moved: Set<UUID>, left: Set<UUID>) {
         let fm = FileManager.default
         var moved: Set<UUID> = []
         var left: Set<UUID> = []
@@ -145,9 +144,6 @@ public struct ItemStorage: Sendable {
             } catch {
                 left.insert(id)
             }
-        }
-        if !moved.isEmpty {
-            try? fm.setAttributes([.modificationDate: date], ofItemAtPath: archive.root.path)
         }
         return (moved, left)
     }

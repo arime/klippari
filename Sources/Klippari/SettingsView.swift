@@ -93,9 +93,11 @@ struct SettingsView: View {
                 LabeledContent("Cleared history") {
                     VStack(alignment: .leading, spacing: 6) {
                         // The summary gets a line of its own: beside the
-                        // buttons it wrapped onto two.
-                        Text("\(archive.count == 1 ? "1 item" : "\(archive.count) items"), cleared "
-                            + archive.archivedAt.formatted(date: .abbreviated, time: .shortened))
+                        // buttons it wrapped onto two. No year: nothing
+                        // stays cleared for more than a day.
+                        Text("\(archive.count == 1 ? "1 item" : "\(archive.count) items"), "
+                            + (archive.clears == 1 ? "cleared " : "last cleared ")
+                            + archive.archivedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
                             .fixedSize()
                         HStack(spacing: 8) {
                             Button("Restore") { settings.onRestoreArchive?() }
@@ -106,7 +108,7 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        Text("Deleted automatically 24 hours after clearing.")
+                        Text("Each clear is deleted 24 hours after it was made.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
