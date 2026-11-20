@@ -473,4 +473,18 @@ func at(_ seconds: TimeInterval) -> Date {
         #expect(store.archiveAll(now: at(1)) == 1)
         #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(1)))
     }
+
+    @Test func theClearJustMadeIsKeptEvenWhenTheClockWentBack() {
+        let store = HistoryStore(storage: ItemStorage(root: root))
+        store.archiveSizeLimit = 100
+        store.add(text(String(repeating: "a", count: 10_000)), sourceApp: nil, now: at(1000))
+        store.archiveAll(now: at(1000))
+        // The clock is set back before the next clear, so the clear just
+        // made has the older name. It is still the one kept.
+        store.add(text(String(repeating: "b", count: 10_000)), sourceApp: nil, now: at(400))
+        #expect(store.archiveAll(now: at(500)) == 1)
+        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(500)))
+        store.restoreArchive()
+        #expect(store.items.map(\.content) == [text(String(repeating: "b", count: 10_000))])
+    }
 }

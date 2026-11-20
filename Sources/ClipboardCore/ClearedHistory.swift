@@ -86,15 +86,19 @@ struct ClearedHistory {
     }
 
     /// Deletes the oldest clears while all of them together take more
-    /// than `limit` bytes. The newest clear is always kept, so what was
-    /// just cleared can be restored, however large it is.
-    func trim(toBytes limit: Int64) {
-        var clears = clears()
-        var sizes = clears.map { Self.size(of: $0.storage.root) }
+    /// than `limit` bytes. `kept`, the clear just made, is never deleted,
+    /// so what was just cleared can be restored, however large it is.
+    /// It is named rather than taken to be the newest: if the clock was
+    /// set back since an earlier clear, the clear just made is not the
+    /// newest by its name.
+    func trim(toBytes limit: Int64, keeping kept: ItemStorage) {
+        let clears = clears()
+        let sizes = clears.map { Self.size(of: $0.storage.root) }
         var total = sizes.reduce(0, +)
-        while total > limit, clears.count > 1 {
-            try? FileManager.default.removeItem(at: clears.removeFirst().storage.root)
-            total -= sizes.removeFirst()
+        for (clear, size) in zip(clears, sizes) where total > limit {
+            guard clear.storage.root.lastPathComponent != kept.root.lastPathComponent else { continue }
+            try? FileManager.default.removeItem(at: clear.storage.root)
+            total -= size
         }
     }
 
