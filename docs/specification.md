@@ -98,9 +98,11 @@ without the mouse.
 - An item is written to a temporary directory and renamed into place.
   On start, directories that are incomplete (no manifest, or a
   manifest that opens but names data that is missing or damaged) are
-  removed and the rest of the history loads. An item whose manifest
-  does not decrypt with the key is never deleted: it is skipped, and
-  clearing the history leaves it where it is.
+  removed and the rest of the history loads. An item in the history
+  whose manifest does not decrypt with the key is never deleted: it is
+  skipped, and clearing the history leaves it where it is. In the
+  cleared history such an item is not counted or restored, and goes
+  when its clear expires.
 - In memory, an item keeps only its plain text and file URLs. All other
   data is read from disk when the item is pasted.
 - Moving an item to the top rewrites only its manifest.

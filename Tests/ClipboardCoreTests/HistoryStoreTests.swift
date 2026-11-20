@@ -432,7 +432,11 @@ func at(_ seconds: TimeInterval) -> Date {
         defer { try? fm.setAttributes([.immutable: false], ofItemAtPath: clearPath) }
         let overdue = at(10 + day + 5)
         #expect(!store.expireArchive(now: overdue))
-        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(10)))
+        // Deleting still emptied the item's own folder, so there is
+        // nothing left to restore, though the clear stays.
+        let item = try #require(try fm.contentsOfDirectory(atPath: clearPath).first)
+        #expect(try fm.contentsOfDirectory(atPath: clearPath + "/" + item).isEmpty)
+        #expect(store.archiveSummary == nil)
         #expect(store.nextArchiveCheck(now: overdue) == overdue.addingTimeInterval(HistoryStore.archiveRetryInterval))
 
         try fm.setAttributes([.immutable: false], ofItemAtPath: clearPath)

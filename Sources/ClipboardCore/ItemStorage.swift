@@ -267,6 +267,15 @@ public struct ItemStorage: Sendable {
         return items.sorted { $0.lastUsedAt > $1.lastUsedAt }
     }
 
+    /// How many items have a manifest that opens with the key. Reads
+    /// only manifests and changes nothing on disk.
+    public func readableItemCount() -> Int {
+        ((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []).filter { name in
+            guard let id = UUID(uuidString: name) else { return false }
+            return manifest(in: directory(for: id), id: id) != nil
+        }.count
+    }
+
     /// True when `root`, or a clear's folder in it, holds an item that
     /// was sealed, with whatever key.
     /// Such a history can only be read with the key it was sealed with.
