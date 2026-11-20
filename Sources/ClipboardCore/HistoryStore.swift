@@ -36,7 +36,7 @@ public struct RestoreResult: Equatable, Sendable {
     /// How long each clear can be restored after it was made.
     public static let archiveLifetime: TimeInterval = 24 * 60 * 60
     /// The most the cleared history may take on disk, in bytes. Past
-    /// it the oldest clears are deleted, though never the last one.
+    /// it the oldest clears are deleted, though never the one just made.
     public var archiveSizeLimit: Int64 = 1_000_000_000
 
     private let storage: ItemStorage
@@ -154,7 +154,7 @@ public struct RestoreResult: Equatable, Sendable {
             old.clear.storage.delete(id: old.item.id)
         }
         archive.removeEmpty()
-        archive.trim(toBytes: archiveSizeLimit)
+        archive.trim(toBytes: archiveSizeLimit, keeping: clear)
 
         // What was archived is gone from the history, so the list never
         // shows an item whose files have moved, and the count is only
