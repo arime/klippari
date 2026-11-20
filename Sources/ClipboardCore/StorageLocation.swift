@@ -7,8 +7,10 @@ import Foundation
 ///         items.noindex/            the history
 ///         items-archive.noindex/    the cleared history
 ///
-/// The '.noindex' suffix and the marker file keep Spotlight from indexing
-/// the history, and the folder is excluded from backups.
+/// The '.noindex' suffix keeps Spotlight from indexing the history. The
+/// marker file is only a further hint: Spotlight is known to honour it
+/// at a volume's root, not necessarily in a folder. The folder is also
+/// excluded from backups.
 public enum StorageLocation {
     public static var defaultFolder: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
