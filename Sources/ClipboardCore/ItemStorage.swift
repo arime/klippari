@@ -271,28 +271,39 @@ public struct ItemStorage: Sendable {
     /// was sealed, with whatever key.
     /// Such a history can only be read with the key it was sealed with.
     public static func holdsSealedItems(_ root: URL) -> Bool {
-        holdsSealedItems(root, foldersDeep: 1)
+        !sealedItems(in: root, foldersDeep: 1, upTo: 1).isEmpty
     }
 
-    /// Also looks `foldersDeep` levels into folders that are not items,
-    /// such as the cleared history's folder for each clear.
-    private static func holdsSealedItems(_ root: URL, foldersDeep: Int) -> Bool {
+    /// Deletes every sealed item in `root` and in its clears' folders,
+    /// for Reset Saved History… once their key is gone. Items still in
+    /// plain form are kept: they need no key, and are encrypted with the
+    /// new one when the history opens.
+    public static func removeSealedItems(_ root: URL) throws {
+        for url in sealedItems(in: root, foldersDeep: 1, upTo: .max) {
+            try FileManager.default.removeItem(at: url)
+        }
+    }
+
+    /// Up to `limit` sealed item folders in `root`, also looking
+    /// `foldersDeep` levels into folders that are not items, such as the
+    /// cleared history's folder for each clear.
+    private static func sealedItems(in root: URL, foldersDeep: Int, upTo limit: Int) -> [URL] {
         let fm = FileManager.default
-        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] {
+        var found: [URL] = []
+        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] where found.count < limit {
             let url = root.appendingPathComponent(name)
             guard UUID(uuidString: name) != nil else {
                 var isDirectory: ObjCBool = false
-                if foldersDeep > 0, fm.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue,
-                   holdsSealedItems(url, foldersDeep: foldersDeep - 1) {
-                    return true
+                if foldersDeep > 0, fm.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+                    found += sealedItems(in: url, foldersDeep: foldersDeep - 1, upTo: limit - found.count)
                 }
                 continue
             }
             guard let handle = try? FileHandle(forReadingFrom: url.appendingPathComponent(manifestName)) else { continue }
             defer { try? handle.close() }
-            if let head = try? handle.read(upToCount: 4), ItemCipher.isSealed(head) { return true }
+            if let head = try? handle.read(upToCount: 4), ItemCipher.isSealed(head) { found.append(url) }
         }
-        return false
+        return found
     }
 
     /// The item's full content, for pasting. Nil when it cannot all be read.

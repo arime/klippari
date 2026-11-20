@@ -235,6 +235,36 @@ func permissions(_ url: URL) -> Int? {
 }
 
 @MainActor @Suite struct AdoptedHistoryTests {
+    @MainActor @Test func resetDeletesOnlyWhatTheLostKeySealed() throws {
+        let root = temporaryRoot()
+        let archive = StorageLocation.archiveRoot(forItems: root)
+        let clear = archive.appendingPathComponent("20261120T060413Z")
+        let lost = ItemCipher.ephemeral()
+        let sealed = makeItem(text("sealed"))
+        try ItemStorage(root: root, cipher: lost).save(sealed)
+        let sealedCleared = makeItem(text("sealed, cleared"))
+        try ItemStorage(root: clear, cipher: lost).save(sealedCleared)
+        let plain = try writePlainItem(in: root, text: "plain")
+        try writePlainItem(in: clear, text: "plain, cleared")
+
+        for folder in [root, archive] {
+            try ItemStorage.removeSealedItems(folder)
+        }
+        #expect(!ItemStorage.holdsSealedItems(root))
+        #expect(!ItemStorage.holdsSealedItems(archive))
+        let fm = FileManager.default
+        #expect(!fm.fileExists(atPath: root.appendingPathComponent(sealed.id.uuidString).path))
+        #expect(!fm.fileExists(atPath: clear.appendingPathComponent(sealedCleared.id.uuidString).path))
+
+        // The new key is allowed now, and the plain items open with it.
+        let key = try ItemCipher.key(stored: nil, sealedHistoryIn: [root, archive]) { SymmetricKey(size: .bits256) }
+        let store = HistoryStore(storage: ItemStorage(root: root, cipher: ItemCipher(key: key)))
+        #expect(store.items.map(\.id) == [plain])
+        store.restoreArchive()
+        #expect(store.items.count == 2)
+        #expect(store.items.contains { $0.content == text("plain, cleared") })
+    }
+
     @Test func aSavedStoreTakesOverAnUnsavedOnesItems() throws {
         // What a run without the key holds: a throwaway folder and key.
         let unsaved = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: .ephemeral()))
