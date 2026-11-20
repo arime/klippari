@@ -123,6 +123,9 @@ without the mouse.
   The whole lookup takes at most 0.2 seconds; past that, or when a call
   times out, the panel goes next to the pointer, so a busy app does not
   hold it up.
+  A focused element counts as a text field by its role, or by a caret
+  with a height: with VoiceOver running, Electron apps give buttons an
+  empty caret.
   Electron apps expose their fields only when asked
   (`AXManualAccessibility`). When one is frontmost and the request
   reads back as off, Klippari asks, looks again within the same 0.2

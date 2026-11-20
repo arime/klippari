@@ -91,7 +91,9 @@ import os
             frame \(field.map { "\($0)" } ?? "-", privacy: .public) \
             caret \(caret.map { "\($0)" } ?? "-", privacy: .public)
             """)
-        let isText = caret != nil
+        // A caret marks a text field only when it has a height: with
+        // VoiceOver running, Electron apps give buttons an empty one.
+        let isText = (caret?.height ?? 0) > 0
             || [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole].contains(role ?? "")
         guard isText else {
             logger.debug("\(app, privacy: .public): not a text field, using the pointer")
