@@ -59,34 +59,47 @@ public enum StorageLocation {
     }
 
     /// Renames `legacy` to `current`. When both exist, the legacy items
-    /// are moved over (an item already in `current` wins) and the legacy
-    /// folder is removed once it is empty; if any move fails it stays,
-    /// to be tried again on the next launch. Returns whether anything
-    /// was moved.
+    /// are moved over (an item already in `current` wins), and so are the
+    /// items of a legacy clear whose folder name `current` already has.
+    /// The legacy folder is removed once it is empty; if any move fails
+    /// it stays, to be tried again on the next launch. Returns whether
+    /// anything was moved.
     @discardableResult
     private static func moveLegacy(_ legacy: URL, to current: URL) throws -> Bool {
         let fm = FileManager.default
         guard fm.fileExists(atPath: legacy.path) else { return false }
         if !fm.fileExists(atPath: current.path) {
             try fm.moveItem(at: legacy, to: current)
-        } else {
-            var allMoved = true
-            for name in (try? fm.contentsOfDirectory(atPath: legacy.path)) ?? [] {
-                let source = legacy.appendingPathComponent(name)
-                let destination = current.appendingPathComponent(name)
-                do {
-                    if fm.fileExists(atPath: destination.path) {
-                        try fm.removeItem(at: source)
-                    } else {
-                        try fm.moveItem(at: source, to: destination)
-                    }
-                } catch {
-                    allMoved = false
-                }
-            }
-            if allMoved { try fm.removeItem(at: legacy) }
+        } else if merge(legacy, into: current) {
+            try fm.removeItem(at: legacy)
         }
         try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: current.path)
         return true
+    }
+
+    /// Moves what is in `source` into `destination`. An item (a folder
+    /// named by its identifier) already in `destination` wins; a folder
+    /// that is not an item, such as a clear, is merged into its namesake.
+    /// Returns whether everything was moved, so `source` can go.
+    private static func merge(_ source: URL, into destination: URL) -> Bool {
+        let fm = FileManager.default
+        var allMoved = true
+        for name in (try? fm.contentsOfDirectory(atPath: source.path)) ?? [] {
+            let from = source.appendingPathComponent(name)
+            let to = destination.appendingPathComponent(name)
+            var isDirectory: ObjCBool = false
+            do {
+                if !fm.fileExists(atPath: to.path, isDirectory: &isDirectory) {
+                    try fm.moveItem(at: from, to: to)
+                } else if UUID(uuidString: name) == nil, isDirectory.boolValue {
+                    if merge(from, into: to) { try fm.removeItem(at: from) } else { allMoved = false }
+                } else {
+                    try fm.removeItem(at: from)
+                }
+            } catch {
+                allMoved = false
+            }
+        }
+        return allMoved
     }
 }
