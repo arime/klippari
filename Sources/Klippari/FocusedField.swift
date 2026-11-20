@@ -15,6 +15,9 @@ import os
     /// which happens after the lookup.
     private static let restoreTimeout: Float = 0.05
     private static let manualAccessibility = "AXManualAccessibility" as CFString
+    /// Set by VoiceOver and other assistive apps to switch on an app's
+    /// full accessibility support.
+    private static let enhancedUserInterface = "AXEnhancedUserInterface"
     /// When the current lookup must be done by.
     private static var deadline = Date.distantPast
     /// Set when a call timed out or the time is up. The rest of the
@@ -54,7 +57,9 @@ import os
         // Electron apps, such as Slack, Discord or Claude, show their
         // text fields to Accessibility only after being asked to. Ask,
         // look again while the app builds them, and take the request
-        // back, so the app is left as it was found.
+        // back, so the app is left as it was found. This only happens
+        // when the request was known to be off, never with VoiceOver
+        // or another assistive app relying on the app's accessibility.
         guard setsTimeout(on: element) else { return nil }
         AXUIElementSetAttributeValue(element, manualAccessibility, kCFBooleanTrue)
         defer {
@@ -105,17 +110,23 @@ import os
         return .text(nil)
     }
 
-    /// The app's Accessibility element when it is an Electron app that
-    /// has not been asked to show its text fields. Nil when it has, by
-    /// the user or another tool: that setting is theirs and is left on.
+    /// The app's Accessibility element when it is an Electron app whose
+    /// request to show its text fields reads back as off. Nil, and the
+    /// app is left alone, when VoiceOver is running, when an assistive
+    /// app has switched on its accessibility (`AXEnhancedUserInterface`),
+    /// when the request is already on, or when it cannot be read, as
+    /// with an Electron version that does not report it: switching it
+    /// off afterwards could then take away what another tool relies on.
     private static func electronAppToExpose(_ app: NSRunningApplication) -> AXUIElement? {
-        guard let bundle = app.bundleURL,
+        guard !NSWorkspace.shared.isVoiceOverEnabled,
+              let bundle = app.bundleURL,
               FileManager.default.fileExists(
                   atPath: bundle.appendingPathComponent("Contents/Frameworks/Electron Framework.framework").path
               )
         else { return nil }
         let element = AXUIElementCreateApplication(app.processIdentifier)
-        if attribute(element, manualAccessibility as String) as? Bool == true { return nil }
+        if attribute(element, enhancedUserInterface) as? Bool == true { return nil }
+        guard attribute(element, manualAccessibility as String) as? Bool == false else { return nil }
         return timedOut ? nil : element
     }
 

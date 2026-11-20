@@ -123,10 +123,14 @@ without the mouse.
   times out, the panel goes next to the pointer, so a busy app does not
   hold it up.
   Electron apps expose their fields only when asked
-  (`AXManualAccessibility`). When one is frontmost and has not been
-  asked already, Klippari asks, looks again within the same 0.2
+  (`AXManualAccessibility`). When one is frontmost and the request
+  reads back as off, Klippari asks, looks again within the same 0.2
   seconds, and takes the request back, so the app is left as it was
-  found.
+  found. It leaves the app alone, and the panel goes by the pointer,
+  when VoiceOver is running, when the app reports
+  `AXEnhancedUserInterface` as on (set by assistive apps), when the
+  request is already on, or when it cannot be read: switching it off
+  afterwards could take away accessibility another tool relies on.
   Opened above the pointer, the card grows upward if the list grows
   while it is open. Where it is dragged to is then not remembered.
 - Each time it opens the list is scrolled so the selected row is in

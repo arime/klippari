@@ -136,7 +136,11 @@ gh release create v1.0.0 build/Klippari-1.0.0.dmg --title 'Klippari 1.0.0'
 - **Accessibility** (System Settings › Privacy & Security ›
   Accessibility). Needed to paste into other apps. Without it, Return
   still puts the item on the clipboard and the panel says what to
-  grant.
+  grant. With Position on in Settings, it is also used to find the text
+  field being typed in. An Electron app shows its fields only when
+  asked; Klippari asks for the length of the lookup and then takes the
+  request back, and leaves the app alone while VoiceOver or another
+  assistive tool is using its accessibility.
 
 Reading the clipboard in the background needs no permission.
 

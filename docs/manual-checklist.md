@@ -76,6 +76,15 @@ Expected behaviour is defined in `specification.md`.
       open above the pointer grows it upward.
 - [ ] With Position on and a busy or hung app in front, the panel
       still opens within about 0.2 seconds, by the pointer.
+- [ ] With Position on and VoiceOver running (Cmd+F5), opening the
+      panel over an Electron app (Slack, Discord, Claude) puts it by
+      the pointer, and after closing it VoiceOver still reads the
+      app's text fields and buttons. Also with focus on something that
+      is not a text field. Turn VoiceOver off afterwards.
+- [ ] With Position on and VoiceOver off, the panel still opens by the
+      text field in each Electron app at hand. If it opens by the
+      pointer in one, note the app and its Electron version: it may not
+      report `AXManualAccessibility`, which Klippari then leaves alone.
 - [ ] With more than nine items, scrolling the list with the trackpad
       and reopening shows the first row selected and in view.
 
