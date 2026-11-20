@@ -113,11 +113,10 @@ public enum StorageLocation {
         for name in (try? fm.contentsOfDirectory(atPath: source.path)) ?? [] {
             let from = source.appendingPathComponent(name)
             let to = destination.appendingPathComponent(name)
-            var isDirectory: ObjCBool = false
             do {
-                if !fm.fileExists(atPath: to.path, isDirectory: &isDirectory) {
+                if (try? fm.attributesOfItem(atPath: to.path)) == nil {
                     try fm.moveItem(at: from, to: to)
-                } else if UUID(uuidString: name) == nil, isDirectory.boolValue {
+                } else if UUID(uuidString: name) == nil, fm.isRealDirectory(from), fm.isRealDirectory(to) {
                     if merge(from, into: to) { try fm.removeItem(at: from) } else { allMoved = false }
                 } else {
                     try fm.removeItem(at: from)

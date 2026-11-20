@@ -29,8 +29,9 @@ struct ClearedHistory {
         for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] {
             guard let date = try? Date(name, strategy: Self.nameStyle) else { continue }
             let url = root.appendingPathComponent(name)
-            var isDirectory: ObjCBool = false
-            guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else { continue }
+            // A symbolic link is never taken for a clear, so expiry and
+            // restore never reach outside the cleared history.
+            guard fm.isRealDirectory(url) else { continue }
             clears.append(Clear(date: date, storage: ItemStorage(root: url, cipher: cipher)))
         }
         return clears.sorted { $0.date < $1.date }
