@@ -60,7 +60,8 @@ without the mouse.
   and file name. A new key is made only while neither `items.noindex`
   nor the archive holds an encrypted item. If the key is missing while
   one does, or the keychain refuses, the history is kept for that run
-  only, in a folder in Caches with a key that never leaves memory, and
+  only, in a folder in Caches with a key that never leaves memory
+  (each launch deletes such folders whose run has ended), and
   the saved history is left alone. While that lasts the app says so:
   the menu bar menu starts with the disabled lines 'History isn't being
   saved' and the reason, and the panel's footer shows the same in
