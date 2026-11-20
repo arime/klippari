@@ -120,16 +120,29 @@ public struct RestoreResult: Equatable, Sendable {
     /// Clears the history by moving it to the archive, as a clear of its
     /// own beside those made before: an archived copy of something
     /// cleared again now gives way to the newer one. Returns how many
-    /// items were cleared. An item whose files could not be moved stays
-    /// in the history; 0 means nothing changed. If the archive has grown
-    /// past `archiveSizeLimit`, the oldest clears are deleted.
+    /// items were cleared. An item kept only in memory, because saving
+    /// it failed, is saved into the archive. An item that could not be
+    /// moved or saved stays in the history and is not counted; 0 means
+    /// nothing changed. If the archive has grown past
+    /// `archiveSizeLimit`, the oldest clears are deleted.
     @discardableResult
     public func archiveAll(now: Date) -> Int {
         guard !items.isEmpty else { return 0 }
         let archive = archive
         let earlier = archive.items()
         let clear = archive.storage(for: now)
-        let (moved, left) = storage.archiveAll(to: clear)
+        var (moved, left) = storage.archiveAll(to: clear)
+        // An item whose save failed is only in memory, with its full
+        // content: save it into the archive instead. If that fails too,
+        // it stays in the history.
+        for item in items where !moved.contains(item.id) && !left.contains(item.id) {
+            do {
+                try clear.save(item)
+                moved.insert(item.id)
+            } catch {
+                left.insert(item.id)
+            }
+        }
         if !left.isEmpty {
             Self.logger.error("Could not archive \(left.count) items")
         }
@@ -143,10 +156,11 @@ public struct RestoreResult: Equatable, Sendable {
         archive.removeEmpty()
         archive.trim(toBytes: archiveSizeLimit)
 
-        // Whatever is not left on disk is gone from the history, so the
-        // list never shows an item whose files have moved.
+        // What was archived is gone from the history, so the list never
+        // shows an item whose files have moved, and the count is only
+        // of items that can be restored.
         let before = items.count
-        items.removeAll { !left.contains($0.id) }
+        items.removeAll { moved.contains($0.id) }
         guard items.count != before else { return 0 }
         onChange?()
         return before - items.count

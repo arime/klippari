@@ -17,6 +17,15 @@ func at(_ seconds: TimeInterval) -> Date {
         HistoryStore(storage: ItemStorage(root: root), limit: limit)
     }
 
+    /// Adds an item while the storage folder is read-only, so saving it
+    /// fails and it is kept in memory only.
+    func addKeptInMemory(_ content: ClipContent, to store: HistoryStore, now: Date) throws -> ClipItem {
+        let fm = FileManager.default
+        try fm.setAttributes([.posixPermissions: 0o500], ofItemAtPath: root.path)
+        defer { try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path) }
+        return store.add(content, sourceApp: nil, now: now)
+    }
+
     func itemsOnDisk() -> Int {
         ((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []).count
     }
@@ -177,16 +186,42 @@ func at(_ seconds: TimeInterval) -> Date {
         #expect(store.items[0].lastUsedAt == at(11))
     }
 
-    @Test func clearingAnItemThatIsOnlyInMemoryLeavesNoEmptyArchive() throws {
+    @Test func clearingSavesAnItemThatIsOnlyInMemoryIntoTheArchive() throws {
         let store = makeStore()
-        // Saving fails with a file where the storage folder was, so the
-        // item is kept in memory only.
-        try FileManager.default.removeItem(at: root)
-        try Data().write(to: root)
-        store.add(text("a"), sourceApp: nil, now: at(1))
-        #expect(store.archiveAll(now: at(10)) == 1)
+        store.add(text("saved"), sourceApp: nil, now: at(1))
+        // Saving fails while the storage folder is read-only, so the
+        // next item is kept in memory only.
+        let memory = try addKeptInMemory(text("memory"), to: store, now: at(2))
+        #expect(itemsOnDisk() == 1)
+
+        #expect(store.archiveAll(now: at(10)) == 2)
         #expect(store.items.isEmpty)
-        #expect(!FileManager.default.fileExists(atPath: store.archiveRoot.path))
+        #expect(store.archiveSummary == ArchiveSummary(count: 2, archivedAt: at(10)))
+        #expect(store.restoreArchive().restored == 2)
+        #expect(store.items.map(\.content) == [text("memory"), text("saved")])
+        #expect(store.items[0].id == memory.id)
+        #expect(makeStore().items.count == 2)
+    }
+
+    @Test func anItemOnlyInMemoryThatCannotBeArchivedStaysAndIsNotCounted() throws {
+        let store = makeStore()
+        store.add(text("saved"), sourceApp: nil, now: at(1))
+        let memory = try addKeptInMemory(text("memory"), to: store, now: at(2))
+        // Saving into the archive fails too: a read-only folder that
+        // cannot be removed is where the item would be built. Moving the
+        // saved item's folder in still works.
+        let fm = FileManager.default
+        let building = store.archiveRoot.appendingPathComponent("19700101T024650Z")
+            .appendingPathComponent(".tmp-" + memory.id.uuidString)
+        try fm.createDirectory(at: building, withIntermediateDirectories: true)
+        try Data().write(to: building.appendingPathComponent("in-the-way"))
+        try fm.setAttributes([.posixPermissions: 0o500], ofItemAtPath: building.path)
+        defer { try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: building.path) }
+
+        #expect(store.archiveAll(now: at(10)) == 1)
+        #expect(store.items.map(\.id) == [memory.id])
+        #expect(store.fullContent(for: memory.id) == text("memory"))
+        #expect(store.archiveSummary?.count == 1)
     }
 
     @Test func restoreMergesByDateSkipsDuplicatesAndRemovesTheArchive() {

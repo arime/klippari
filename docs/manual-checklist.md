@@ -41,6 +41,11 @@ Expected behaviour is defined in `specification.md`.
       cleared' with the time of the second. A day after the first
       clear, its items are gone and the second clear's are still
       there; a day after the second, the row goes away.
+- [ ] An item that could not be saved is cleared with the rest: with
+      `~/Library/Application Support/Klippari/items` made read-only
+      (`chmod 500`), copy something, then make it writable again
+      (`chmod 700`) and press Shift+Cmd+Backspace. The notice counts
+      the item, and Restore brings it back.
 - [ ] Starting a build of this version over a cleared history left by
       an earlier build keeps it: Settings shows it with the date it
       had, and Restore brings it back.
