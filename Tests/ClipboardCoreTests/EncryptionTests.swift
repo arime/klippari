@@ -534,3 +534,64 @@ func permissions(_ url: URL) -> Int? {
         #expect(store.items.map(\.content) == [text("cleared")])
     }
 }
+
+@MainActor @Suite struct KeyCheckTests {
+    let folder = temporaryRoot()
+    var items: URL { StorageLocation.itemsRoot(in: folder) }
+    var archive: URL { StorageLocation.archiveRoot(forItems: items) }
+    let key = ItemCipher.ephemeral()
+
+    @Test func aWrittenCheckMatchesItsKeyOnly() throws {
+        #expect(KeyCheck.verdict(for: key, in: folder, sealedHistoryIn: [items, archive]) == .notWritten)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try KeyCheck.write(key, in: folder)
+        #expect(KeyCheck.exists(in: folder))
+        #expect(KeyCheck.verdict(for: key, in: folder, sealedHistoryIn: [items, archive]) == .matches)
+        let other = ItemCipher.ephemeral()
+        #expect(KeyCheck.verdict(for: other, in: folder, sealedHistoryIn: [items, archive]) == .wrongKey)
+    }
+
+    @Test func withoutACheckAKeyThatOpensNothingIsWrong() throws {
+        try ItemStorage(root: archive.appendingPathComponent("20261120T060413Z"), cipher: key)
+            .save(makeItem(text("cleared")))
+        #expect(KeyCheck.verdict(for: key, in: folder, sealedHistoryIn: [items, archive]) == .notWritten)
+        let other = ItemCipher.ephemeral()
+        #expect(KeyCheck.verdict(for: other, in: folder, sealedHistoryIn: [items, archive]) == .wrongKey)
+    }
+
+    @Test func itemsTheKeyCannotOpenAreFoundAndOnlyThoseGo() throws {
+        let cipher = key
+        let ours = makeItem(text("ours"))
+        try ItemStorage(root: items, cipher: cipher).save(ours)
+        let theirs = makeItem(text("theirs"))
+        try ItemStorage(root: archive.appendingPathComponent("20261120T060413Z"), cipher: .ephemeral()).save(theirs)
+        let plain = try writePlainItem(in: items, text: "plain")
+        let unknown = items.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: unknown, withIntermediateDirectories: true)
+        try Data("KLP2 newer".utf8).write(to: unknown.appendingPathComponent("manifest.json"))
+
+        let store = HistoryStore(storage: ItemStorage(root: items, cipher: cipher), sealingPlainItems: false)
+        #expect(store.items.map(\.id) == [ours.id])
+        let names = { (urls: [URL]) in Set(urls.map(\.lastPathComponent)) }
+        #expect(names(store.unreadableItems(countingPlain: false)) == [theirs.id.uuidString, unknown.lastPathComponent])
+        #expect(names(store.unreadableItems(countingPlain: true))
+            == [theirs.id.uuidString, unknown.lastPathComponent, plain.uuidString])
+        #expect(ItemStorage.holdsPlainItems(in: [items, archive]))
+
+        #expect(store.removeUnreadableItems(countingPlain: true) == 3)
+        #expect(store.unreadableItems(countingPlain: true).isEmpty)
+        #expect(!ItemStorage.holdsPlainItems(in: [items, archive]))
+        #expect(HistoryStore(storage: ItemStorage(root: items, cipher: cipher)).items.map(\.id) == [ours.id])
+    }
+
+    @Test func sealingThePlainHistoryReportsWhenItIsDone() throws {
+        try writePlainItem(in: items, text: "plain")
+        try writePlainItem(in: archive.appendingPathComponent("20261120T060413Z"), text: "cleared")
+        let storage = ItemStorage(root: items, cipher: key)
+        #expect(HistoryStore.sealPlainHistory(storage))
+        #expect(!ItemStorage.holdsPlainItems(in: [items, archive]))
+        let store = HistoryStore(storage: storage, sealingPlainItems: false)
+        #expect(store.items.map(\.content) == [text("plain")])
+        #expect(store.archiveSummary?.count == 1)
+    }
+}
