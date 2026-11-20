@@ -166,6 +166,24 @@ func permissions(_ url: URL) -> Int? {
         #expect(storage.sealPlainItems() == 0)
         #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
     }
+
+    @Test func aManifestInAnUnknownFormIsLeftAlone() throws {
+        let root = temporaryRoot()
+        let storage = ItemStorage(root: root, cipher: testCipher)
+        var kept: [URL] = []
+        // A later format, and a sealed manifest whose first bytes are damaged.
+        for manifest in [Data("KLP2 something newer".utf8), Data([0x00, 0x4C, 0x50, 0x31, 0x9A, 0x07])] {
+            let directory = root.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try manifest.write(to: directory.appendingPathComponent("manifest.json"))
+            kept.append(directory)
+        }
+        #expect(storage.sealPlainItems() == 0)
+        #expect(storage.loadAll().isEmpty)
+        for directory in kept {
+            #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("manifest.json").path))
+        }
+    }
 }
 
 @Suite struct MissingKeyTests {
