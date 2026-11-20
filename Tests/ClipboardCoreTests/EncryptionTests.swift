@@ -516,9 +516,12 @@ func permissions(_ url: URL) -> Int? {
         #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: older))
         #expect(store.restoreArchive() == RestoreResult(restored: 1, noRoom: 0))
         #expect(store.archiveSummary == nil)
-        // Unread, but not deleted before the newer clear expires.
-        #expect(store.expireArchive(now: newer) == false)
+        // Unread, but kept until its clear expires, and then gone.
+        let day = HistoryStore.archiveLifetime
+        #expect(!store.expireArchive(now: older.addingTimeInterval(day - 1)))
         #expect(ItemStorage.holdsSealedItems(archive))
+        #expect(store.expireArchive(now: newer.addingTimeInterval(day)))
+        #expect(!ItemStorage.holdsSealedItems(archive))
     }
 
     @Test func sealingAClearKeepsItsDate() throws {
