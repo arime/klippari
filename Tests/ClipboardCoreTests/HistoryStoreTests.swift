@@ -365,6 +365,30 @@ func at(_ seconds: TimeInterval) -> Date {
         #expect(store.items.map(\.content) == [text("b")])
     }
 
+    @Test func theNextExpiryFollowsClearsRestoresAndDeletes() {
+        let store = HistoryStore(storage: ItemStorage(root: root))
+        let day = HistoryStore.archiveLifetime
+        #expect(store.nextArchiveExpiry == nil)
+        store.add(text("a"), sourceApp: nil, now: at(0))
+        store.archiveAll(now: at(10))
+        store.add(text("b"), sourceApp: nil, now: at(20))
+        store.archiveAll(now: at(30))
+        #expect(store.nextArchiveExpiry == at(10 + day))
+        // Room for one: 'b' comes back, emptying the second clear, and
+        // the first is still due first.
+        store.limit = 1
+        store.restoreArchive()
+        #expect(store.items.map(\.content) == [text("b")])
+        #expect(store.nextArchiveExpiry == at(10 + day))
+        store.limit = 2
+        store.restoreArchive()
+        #expect(store.nextArchiveExpiry == nil)
+        store.archiveAll(now: at(40))
+        #expect(store.nextArchiveExpiry == at(40 + day))
+        store.deleteArchive()
+        #expect(store.nextArchiveExpiry == nil)
+    }
+
     @Test func clearingEveryDayStillExpiresOlderClears() {
         let store = HistoryStore(storage: ItemStorage(root: root))
         let day = HistoryStore.archiveLifetime

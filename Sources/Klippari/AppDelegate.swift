@@ -47,14 +47,29 @@ import ClipboardCore
         NSApp.mainMenu = makeMainMenu()
         LoginItem.registerOnFirstLaunch()
         monitor.start()
-        startExpiryTimer()
-    }
-
-    /// The cleared history is deleted a day after the last clear.
-    private func startExpiryTimer() {
-        let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
+        scheduleExpiry()
+        // Timers do not fire while the Mac sleeps, and may fire late
+        // after: look again on waking.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
             MainActor.assumeIsolated { self?.expire() }
         }
+    }
+
+    /// Each clear is deleted a day after it was made. One timer waits
+    /// for the next of those times; it is set again whenever the
+    /// cleared history changes.
+    private func scheduleExpiry() {
+        expiryTimer?.invalidate()
+        expiryTimer = nil
+        guard let date = store.nextArchiveExpiry else { return }
+        let timer = Timer(fire: date, interval: 0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.expire() }
+        }
+        // Lets macOS group the wake-up with others; a clear may outlive
+        // its day by up to a minute.
+        timer.tolerance = 60
         RunLoop.main.add(timer, forMode: .common)
         expiryTimer = timer
     }
@@ -62,6 +77,8 @@ import ClipboardCore
     private func expire() {
         if store.expireArchive(now: Date()) {
             showArchive()
+        } else {
+            scheduleExpiry()
         }
     }
 
@@ -171,10 +188,12 @@ import ClipboardCore
         showArchive()
     }
 
-    /// Brings the Cleared history row in Settings up to date.
+    /// Brings the Cleared history row in Settings, and the timer that
+    /// deletes it, up to date with the cleared history.
     private func showArchive(note: String? = nil) {
         settings.archive = store.archiveSummary
         settings.restoreNote = note
+        scheduleExpiry()
     }
 
     /// A background app has no visible menu bar, but the main menu still

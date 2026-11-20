@@ -46,6 +46,8 @@ Expected behaviour is defined in `specification.md`.
       (`chmod 500`), copy something, then make it writable again
       (`chmod 700`) and press Shift+Cmd+Backspace. The notice counts
       the item, and Restore brings it back.
+- [ ] A clear whose day runs out while the Mac sleeps is gone from
+      Settings right after waking.
 - [ ] Starting a build of this version over a cleared history left by
       an earlier build keeps it: Settings shows it with the date it
       had, and Restore brings it back.

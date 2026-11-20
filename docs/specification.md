@@ -88,9 +88,12 @@ without the mouse.
   of something already in the history is dropped. An item that could
   not be moved stays in the archive too. A clear's folder is removed
   once it is empty, and `items-archive` once no clear is left.
-- Each clear is deleted 24 hours after it was made, checked at launch
-  and every 15 seconds. Delete in Settings deletes every clear at
-  once.
+- Each clear is deleted 24 hours after it was made. Klippari checks at
+  launch, when the Mac wakes from sleep, and when a single timer set
+  for the oldest clear's time fires (it may fire up to a minute late,
+  so macOS can group wake-ups). The timer is set again after every
+  clear, restore, delete and check; with nothing cleared there is no
+  timer. Delete in Settings deletes every clear at once.
 - The archive may take at most 1 GB. When a clear takes it past that,
   the oldest clears are deleted until it fits, but never the clear
   just made, so it can always be restored.
