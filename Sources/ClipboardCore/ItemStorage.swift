@@ -86,7 +86,12 @@ public struct ItemStorage: Sendable {
     /// Writes a new item with its full content. The item is built in a
     /// hidden temporary directory and renamed into place, so a visible
     /// item directory is always complete.
-    public func save(_ item: ClipItem) throws {
+    ///
+    /// With `durable`, the new files are flushed to disk before they
+    /// replace an existing directory, so a power loss right after cannot
+    /// leave the item with neither copy. Encrypting a 1.0 item uses it,
+    /// since its plain copy goes in the swap.
+    public func save(_ item: ClipItem, durable: Bool = false) throws {
         guard item.content.isComplete else { throw StorageError.incompleteContent }
         let fm = FileManager.default
         let temporary = root.appendingPathComponent(Self.temporaryPrefix + item.id.uuidString)
@@ -117,6 +122,13 @@ public struct ItemStorage: Sendable {
                 JSONEncoder().encode(manifest), to: temporary.appendingPathComponent(Self.manifestName), id: item.id
             )
 
+            if durable {
+                for name in try fm.contentsOfDirectory(atPath: temporary.path) {
+                    try Self.flush(temporary.appendingPathComponent(name))
+                }
+                try Self.flush(temporary)
+            }
+
             let destination = directory(for: item.id)
             if fm.fileExists(atPath: destination.path) {
                 // Swap in one step, so an interruption never leaves the
@@ -127,9 +139,22 @@ public struct ItemStorage: Sendable {
             } else {
                 try fm.moveItem(at: temporary, to: destination)
             }
+            // And the swap itself, which lives in the parent folder.
+            if durable { try? Self.flush(root) }
         } catch {
             try? fm.removeItem(at: temporary)
             throw error
+        }
+    }
+
+    /// Flushes a file or directory to the disk itself, not only to the
+    /// drive's cache.
+    private static func flush(_ url: URL) throws {
+        let descriptor = open(url.path, O_RDONLY)
+        guard descriptor >= 0 else { throw StorageError.writeFailed(url.lastPathComponent) }
+        defer { close(descriptor) }
+        if fcntl(descriptor, F_FULLFSYNC) != 0, fsync(descriptor) != 0 {
+            throw StorageError.writeFailed(url.lastPathComponent)
         }
     }
 
@@ -226,7 +251,7 @@ public struct ItemStorage: Sendable {
                 sourceApp: manifest.sourceApp, content: full, imageInfo: manifest.imageInfo,
                 contentHash: manifest.contentHash
             )
-            if (try? save(item)) != nil { sealed += 1 }
+            if (try? save(item, durable: true)) != nil { sealed += 1 }
         }
         return sealed
     }
