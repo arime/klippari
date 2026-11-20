@@ -49,7 +49,10 @@ public struct ItemStorage: Sendable {
         try? fm.createDirectory(
             at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
         )
-        try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
+        // Never through a symbolic link: that would change another folder.
+        if fm.isRealDirectory(root) {
+            try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
+        }
     }
 
     private func directory(for id: UUID) -> URL {
@@ -242,10 +245,9 @@ public struct ItemStorage: Sendable {
         var items: [ClipItem] = []
         for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] {
             let url = root.appendingPathComponent(name)
-            var isDirectory: ObjCBool = false
-            guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-                continue
-            }
+            // A symbolic link is never followed, so nothing outside the
+            // history is read or deleted through one.
+            guard fm.isRealDirectory(url) else { continue }
             guard let id = UUID(uuidString: name) else {
                 // Not an item: what an interrupted save left.
                 try? fm.removeItem(at: url)
@@ -337,8 +339,7 @@ public struct ItemStorage: Sendable {
         for name in names where found.count < limit {
             let url = root.appendingPathComponent(name)
             guard UUID(uuidString: name) != nil else {
-                var isDirectory: ObjCBool = false
-                if foldersDeep > 0, fm.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+                if foldersDeep > 0, fm.isRealDirectory(url) {
                     let inner = scan(url, foldersDeep: foldersDeep - 1, upTo: limit - found.count)
                     found += inner.sealed
                     unsure = unsure || inner.unsure
@@ -434,5 +435,12 @@ public struct ItemStorage: Sendable {
             entries.append(PasteboardEntry(types: types))
         }
         return ClipContent(entries: entries)
+    }
+}
+
+extension FileManager {
+    /// Whether `url` is a directory itself, not a symbolic link to one.
+    func isRealDirectory(_ url: URL) -> Bool {
+        (try? attributesOfItem(atPath: url.path))?[.type] as? FileAttributeType == .typeDirectory
     }
 }

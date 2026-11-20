@@ -454,6 +454,28 @@ func permissions(_ url: URL) -> Int? {
         #expect(store.items.map(\.content) == [text("old")])
     }
 
+    @Test func aLinkInTheClearedHistoryIsNeverFollowed() throws {
+        let fm = FileManager.default
+        let outside = temporaryRoot()
+        let precious = outside.appendingPathComponent("Precious folder")
+        try fm.createDirectory(at: precious, withIntermediateDirectories: true)
+        try ItemStorage(root: outside, cipher: ItemCipher.ephemeral()).save(makeItem(text("sealed elsewhere")))
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: outside.path)
+        let archive = StorageLocation.archiveRoot(forItems: root)
+        try fm.createDirectory(at: archive, withIntermediateDirectories: true)
+        try fm.createSymbolicLink(at: archive.appendingPathComponent("20261120T060413Z"), withDestinationURL: outside)
+
+        let store = makeStore()
+        store.add(text("a"), sourceApp: nil, now: at(0))
+        store.archiveAll(now: at(1))
+        store.restoreArchive()
+        store.expireArchive(now: at(10 * HistoryStore.archiveLifetime))
+        try ItemStorage.removeSealedItems(archive)
+        #expect(fm.fileExists(atPath: precious.path))
+        #expect(permissions(outside) == 0o755)
+        #expect(ItemStorage.holdsSealedItems(outside))
+    }
+
     @Test func anInterruptedSaveInAClearIsCleanedUpAtLaunch() throws {
         let clear = StorageLocation.archiveRoot(forItems: root).appendingPathComponent("20261120T060413Z")
         try writePlainItem(in: clear, text: "cleared")
