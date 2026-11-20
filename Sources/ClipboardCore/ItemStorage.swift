@@ -246,10 +246,22 @@ public struct ItemStorage: Sendable {
             guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
                 continue
             }
-            guard let id = UUID(uuidString: name),
-                  let raw = try? Data(contentsOf: url.appendingPathComponent(Self.manifestName)), !raw.isEmpty
-            else {
-                // Not an item, or one that never got its manifest.
+            guard let id = UUID(uuidString: name) else {
+                // Not an item: what an interrupted save left.
+                try? fm.removeItem(at: url)
+                continue
+            }
+            let raw: Data
+            do {
+                raw = try Data(contentsOf: url.appendingPathComponent(Self.manifestName))
+            } catch {
+                // An item that never got its manifest goes. One whose
+                // manifest is there but cannot be read now (permissions,
+                // a disk error) may be whole, and stays.
+                if Self.isMissing(error) { try? fm.removeItem(at: url) }
+                continue
+            }
+            guard !raw.isEmpty else {
                 try? fm.removeItem(at: url)
                 continue
             }
@@ -288,42 +300,82 @@ public struct ItemStorage: Sendable {
     }
 
     /// True when `root`, or a clear's folder in it, holds an item that
-    /// was sealed, with whatever key.
-    /// Such a history can only be read with the key it was sealed with.
+    /// was sealed, with whatever key, or might: a folder that cannot be
+    /// listed, or a manifest that is there but cannot be read, counts
+    /// too. Such a history can only be read with the key it was sealed
+    /// with, so a new key must not be made while this is true.
     public static func holdsSealedItems(_ root: URL) -> Bool {
-        !sealedItems(in: root, foldersDeep: 1, upTo: 1).isEmpty
+        let scan = scan(root, foldersDeep: 1, upTo: 1)
+        return !scan.sealed.isEmpty || scan.unsure
     }
 
     /// Deletes every sealed item in `root` and in its clears' folders,
     /// for Reset Saved History… once their key is gone. Items still in
     /// plain form are kept: they need no key, and are encrypted with the
-    /// new one when the history opens.
+    /// new one when the history opens. So is anything that cannot be
+    /// read, which `holdsSealedItems` then still reports.
     public static func removeSealedItems(_ root: URL) throws {
-        for url in sealedItems(in: root, foldersDeep: 1, upTo: .max) {
+        for url in scan(root, foldersDeep: 1, upTo: .max).sealed {
             try FileManager.default.removeItem(at: url)
         }
     }
 
     /// Up to `limit` sealed item folders in `root`, also looking
     /// `foldersDeep` levels into folders that are not items, such as the
-    /// cleared history's folder for each clear.
-    private static func sealedItems(in root: URL, foldersDeep: Int, upTo limit: Int) -> [URL] {
+    /// cleared history's folder for each clear. `unsure` is set when a
+    /// folder or manifest that is there could not be read.
+    private static func scan(_ root: URL, foldersDeep: Int, upTo limit: Int) -> (sealed: [URL], unsure: Bool) {
         let fm = FileManager.default
+        let names: [String]
+        do {
+            names = try fm.contentsOfDirectory(atPath: root.path)
+        } catch {
+            return ([], !isMissing(error))
+        }
         var found: [URL] = []
-        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] where found.count < limit {
+        var unsure = false
+        for name in names where found.count < limit {
             let url = root.appendingPathComponent(name)
             guard UUID(uuidString: name) != nil else {
                 var isDirectory: ObjCBool = false
                 if foldersDeep > 0, fm.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
-                    found += sealedItems(in: url, foldersDeep: foldersDeep - 1, upTo: limit - found.count)
+                    let inner = scan(url, foldersDeep: foldersDeep - 1, upTo: limit - found.count)
+                    found += inner.sealed
+                    unsure = unsure || inner.unsure
                 }
                 continue
             }
-            guard let handle = try? FileHandle(forReadingFrom: url.appendingPathComponent(manifestName)) else { continue }
+            let handle: FileHandle
+            do {
+                handle = try FileHandle(forReadingFrom: url.appendingPathComponent(manifestName))
+            } catch {
+                if !isMissing(error) { unsure = true }
+                continue
+            }
             defer { try? handle.close() }
-            if let head = try? handle.read(upToCount: 4), ItemCipher.isSealed(head) { found.append(url) }
+            guard let head = try? handle.read(upToCount: 4) else {
+                unsure = true
+                continue
+            }
+            if ItemCipher.isSealed(head) { found.append(url) }
         }
-        return found
+        return (found, unsure)
+    }
+
+    /// Whether `error` says the file is not there, rather than that it
+    /// could not be read.
+    static func isMissing(_ error: Error) -> Bool {
+        let error = error as NSError
+        if error.domain == NSCocoaErrorDomain,
+           [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(error.code) {
+            return true
+        }
+        if error.domain == NSPOSIXErrorDomain, error.code == Int(ENOENT) { return true }
+        if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError,
+           underlying.domain == NSPOSIXErrorDomain, underlying.code == Int(ENOENT) {
+            return true
+        }
+        return false
     }
 
     /// The item's full content, for pasting. Nil when it cannot all be read.

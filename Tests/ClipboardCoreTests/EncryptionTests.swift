@@ -221,6 +221,35 @@ func permissions(_ url: URL) -> Int? {
         #expect(!made)
     }
 
+    @Test func noNewKeyWhileAManifestCannotBeRead() throws {
+        let root = temporaryRoot()
+        let item = makeItem(text("sealed"))
+        try ItemStorage(root: root, cipher: ItemCipher.ephemeral()).save(item)
+        let manifest = root.appendingPathComponent(item.id.uuidString).appendingPathComponent("manifest.json")
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: manifest.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: manifest.path) }
+        #expect(ItemStorage.holdsSealedItems(root))
+        #expect(throws: ItemCipher.MissingKey.self) {
+            try ItemCipher.key(stored: nil, sealedHistoryIn: [root]) { throw Unexpected() }
+        }
+        // Loading leaves it where it is.
+        #expect(ItemStorage(root: root, cipher: testCipher).loadAll().isEmpty)
+        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent(item.id.uuidString).path))
+    }
+
+    @Test func noNewKeyWhileAClearCannotBeListed() throws {
+        let archive = temporaryRoot()
+        let clear = archive.appendingPathComponent("20261120T060413Z")
+        try ItemStorage(root: clear, cipher: ItemCipher.ephemeral()).save(makeItem(text("sealed")))
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: clear.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: clear.path) }
+        #expect(ItemStorage.holdsSealedItems(archive))
+    }
+
+    @Test func aMissingFolderHoldsNothing() {
+        #expect(!ItemStorage.holdsSealedItems(temporaryRoot().appendingPathComponent("nothing here")))
+    }
+
     @MainActor @Test func noNewKeyWhileTheArchiveHoldsSealedItems() throws {
         let root = temporaryRoot()
         let store = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
