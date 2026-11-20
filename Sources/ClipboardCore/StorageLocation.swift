@@ -63,10 +63,12 @@ public enum StorageLocation {
             fm.createFile(atPath: marker.path, contents: nil, attributes: [.posixPermissions: 0o600])
         }
 
+        // Best effort, like the marker: the history is encrypted either
+        // way, so a folder that refuses this still saves.
         var url = folder
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
-        try url.setResourceValues(values)
+        try? url.setResourceValues(values)
 
         let items = itemsRoot(in: folder)
         try moveLegacy(folder.appendingPathComponent("items"), to: items)
