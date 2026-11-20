@@ -87,7 +87,7 @@ import os
 
     /// The encrypted history in Application Support. When the folder or
     /// the keychain key cannot be had, the history is kept for this run
-    /// only, in a temporary folder with a key that never leaves memory,
+    /// only, in a folder in Caches with a key that never leaves memory,
     /// and the saved history is left untouched for a later launch. The
     /// menu and the panel then say that it is not being saved, and why.
     private func openStorage() -> ItemStorage {
@@ -96,9 +96,7 @@ import os
         } catch {
             Self.logger.error("History is not saved this run: \(String(describing: error), privacy: .public)")
             unsaved = error as? UnsavedHistory ?? .folder(String(describing: error))
-            let root = FileManager.default.temporaryDirectory
-                .appendingPathComponent("Klippari-unsaved-\(UUID().uuidString)")
-                .appendingPathComponent("items")
+            let root = StorageLocation.unsavedItemsRoot(in: StorageLocation.defaultCaches)
             unsavedRoot = root
             return ItemStorage(root: root, cipher: .ephemeral())
         }

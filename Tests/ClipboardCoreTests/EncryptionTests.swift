@@ -236,6 +236,19 @@ func permissions(_ url: URL) -> Int? {
 }
 
 @MainActor @Suite struct AdoptedHistoryTests {
+    @MainActor @Test func anItemWhoseFilesAreGoneIsNotTakenOver() throws {
+        let unsavedRoot = temporaryRoot()
+        let unsaved = HistoryStore(storage: ItemStorage(root: unsavedRoot, cipher: .ephemeral()))
+        let png = content(TypedData(type: TypeName.png, data: makePNG(width: 80, height: 40)))
+        let image = unsaved.add(png, sourceApp: "Preview", now: at(2))
+        unsaved.add(text("text"), sourceApp: "Notes", now: at(3))
+        try FileManager.default.removeItem(at: unsavedRoot.appendingPathComponent(image.id.uuidString))
+
+        let saved = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
+        saved.adopt(unsaved)
+        #expect(saved.items.map(\.content) == [text("text")])
+    }
+
     @MainActor @Test func resetDeletesOnlyWhatTheLostKeySealed() throws {
         let root = temporaryRoot()
         let archive = StorageLocation.archiveRoot(forItems: root)
@@ -290,6 +303,20 @@ func permissions(_ url: URL) -> Int? {
 @Suite struct StorageLocationTests {
     func makeFolder() -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("KlippariLocation-\(UUID().uuidString)")
+    }
+
+    @Test func anUnsavedRunGetsANewFolderAndEarlierOnesGo() throws {
+        let caches = makeFolder()
+        let fm = FileManager.default
+        let first = StorageLocation.unsavedItemsRoot(in: caches)
+        try writePlainItem(in: first, text: "from a run that did not end cleanly")
+        let other = caches.appendingPathComponent("something else")
+        try fm.createDirectory(at: other, withIntermediateDirectories: true)
+        let second = StorageLocation.unsavedItemsRoot(in: caches)
+        #expect(second != first)
+        #expect(!fm.fileExists(atPath: first.deletingLastPathComponent().path))
+        #expect(fm.fileExists(atPath: other.path))
+        #expect(second.deletingLastPathComponent().lastPathComponent.hasSuffix(".noindex"))
     }
 
     @Test func archiveSitsNextToItems() {
