@@ -172,12 +172,6 @@ public struct RestoreResult: Equatable, Sendable {
         return storage.loadContent(id: id) ?? item.content
     }
 
-    /// The item's thumbnail PNG; nil for items without one.
-    public func thumbnail(for id: UUID) -> Data? {
-        guard items.contains(where: { $0.id == id }) else { return nil }
-        return storage.thumbnail(for: id)
-    }
-
     public func remove(_ id: UUID) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         items.remove(at: index)
