@@ -208,7 +208,7 @@ func at(_ seconds: TimeInterval) -> Date {
         store.add(text("saved"), sourceApp: nil, now: at(1))
         let memory = try addKeptInMemory(text("memory"), to: store, now: at(2))
         // Saving into the archive fails too: a read-only folder that
-        // cannot be removed is where the item would be built. Moving the
+        // in it can be removed.is where the item would be built. Moving the
         // saved item's folder in still works.
         let fm = FileManager.default
         let building = store.archiveRoot.appendingPathComponent("19700101T024650Z")
@@ -387,6 +387,30 @@ func at(_ seconds: TimeInterval) -> Date {
         #expect(store.nextArchiveExpiry == at(40 + day))
         store.deleteArchive()
         #expect(store.nextArchiveExpiry == nil)
+    }
+
+    @Test func aClearThatCannotBeDeletedIsTriedAgainAMinuteLater() throws {
+        let store = HistoryStore(storage: ItemStorage(root: root))
+        let day = HistoryStore.archiveLifetime
+        store.add(text("a"), sourceApp: nil, now: at(0))
+        store.archiveAll(now: at(10))
+        #expect(store.nextArchiveCheck(now: at(20)) == at(10 + day))
+
+        // A locked clear folder (chflags uchg): neither it nor the items
+        // in it can be removed.
+        let fm = FileManager.default
+        let clear = try #require(try fm.contentsOfDirectory(atPath: store.archiveRoot.path).first)
+        let clearPath = store.archiveRoot.appendingPathComponent(clear).path
+        try fm.setAttributes([.immutable: true], ofItemAtPath: clearPath)
+        defer { try? fm.setAttributes([.immutable: false], ofItemAtPath: clearPath) }
+        let overdue = at(10 + day + 5)
+        #expect(!store.expireArchive(now: overdue))
+        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(10)))
+        #expect(store.nextArchiveCheck(now: overdue) == overdue.addingTimeInterval(HistoryStore.archiveRetryInterval))
+
+        try fm.setAttributes([.immutable: false], ofItemAtPath: clearPath)
+        #expect(store.expireArchive(now: overdue.addingTimeInterval(60)))
+        #expect(store.nextArchiveCheck(now: overdue) == nil)
     }
 
     @Test func clearingEveryDayStillExpiresOlderClears() {

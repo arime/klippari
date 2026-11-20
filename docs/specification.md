@@ -92,8 +92,9 @@ without the mouse.
   launch, when the Mac wakes from sleep, and when a single timer set
   for the oldest clear's time fires (it may fire up to a minute late,
   so macOS can group wake-ups). The timer is set again after every
-  clear, restore, delete and check; with nothing cleared there is no
-  timer. Delete in Settings deletes every clear at once.
+  clear, restore, delete and check, never for less than a minute
+  ahead, so a clear that cannot be deleted is tried again each minute
+  rather than at once; with nothing cleared there is no timer. Delete in Settings deletes every clear at once.
 - The archive may take at most 1 GB. When a clear takes it past that,
   the oldest clears are deleted until it fits, but never the clear
   just made, so it can always be restored.

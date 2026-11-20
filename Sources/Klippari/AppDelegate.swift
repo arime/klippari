@@ -63,7 +63,7 @@ import ClipboardCore
     private func scheduleExpiry() {
         expiryTimer?.invalidate()
         expiryTimer = nil
-        guard let date = store.nextArchiveExpiry else { return }
+        guard let date = store.nextArchiveCheck(now: Date()) else { return }
         let timer = Timer(fire: date, interval: 0, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.expire() }
         }
