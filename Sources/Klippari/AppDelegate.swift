@@ -144,8 +144,17 @@ import os
         alert.buttons[0].hasDestructiveAction = true
         alert.buttons[0].keyEquivalent = ""
         alert.buttons[1].keyEquivalent = "\r"
+        // A button has one key equivalent, and Cancel's was Escape. Escape
+        // still cancels, as in every other alert.
+        let escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak alert] event in
+            guard let alert, event.keyCode == 53, event.window === alert.window else { return event }
+            alert.buttons[1].performClick(nil)
+            return nil
+        }
         NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let response = alert.runModal()
+        if let escape { NSEvent.removeMonitor(escape) }
+        guard response == .alertFirstButtonReturn else { return }
         do {
             try resetSavedHistory()
         } catch {
