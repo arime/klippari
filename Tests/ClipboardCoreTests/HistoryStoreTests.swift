@@ -315,7 +315,7 @@ func at(_ seconds: TimeInterval) -> Date {
         let blocker = root.appendingPathComponent(stuck.id.uuidString)
         try FileManager.default.createDirectory(at: blocker, withIntermediateDirectories: true)
 
-        #expect(store.restoreArchive().restored == 1)
+        #expect(store.restoreArchive() == RestoreResult(restored: 1, noRoom: 0, failed: 1))
         #expect(store.items.map(\.content) == [text("b")])
         #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(10)))
 
@@ -331,6 +331,42 @@ func at(_ seconds: TimeInterval) -> Date {
         store.add(text("a"), sourceApp: nil, now: at(1))
         #expect(store.restoreArchive() == RestoreResult(restored: 0, noRoom: 0))
         #expect(store.items.count == 1)
+    }
+
+    @Test func aRestoreThatCannotMoveAnythingSaysSo() throws {
+        let store = makeStore(limit: 2)
+        store.add(text("a"), sourceApp: nil, now: at(1))
+        store.add(text("b"), sourceApp: nil, now: at(2))
+        store.archiveAll(now: at(10))
+        store.add(text("c"), sourceApp: nil, now: at(11))
+        store.add(text("d"), sourceApp: nil, now: at(12))
+        store.archiveAll(now: at(20))
+        store.add(text("e"), sourceApp: nil, now: at(21))
+        // Nothing can be moved into a read-only history folder. Room for
+        // one: each failure leaves the room to the next, so all four are
+        // tried, none counts as not fitting, and the note says so.
+        let fm = FileManager.default
+        try fm.setAttributes([.posixPermissions: 0o500], ofItemAtPath: root.path)
+        defer { try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path) }
+        let result = store.restoreArchive()
+        #expect(result == RestoreResult(restored: 0, noRoom: 0, failed: 4))
+        #expect(result.note == "Nothing was restored. 4 could not be moved back and are still in the cleared history.")
+        #expect(store.items.map(\.content) == [text("e")])
+        #expect(store.archiveSummary?.count == 4)
+    }
+
+    @Test func restoreNotes() {
+        #expect(RestoreResult(restored: 3, noRoom: 0).note == nil)
+        #expect(RestoreResult(restored: 0, noRoom: 0).note == nil)
+        #expect(RestoreResult(restored: 0, noRoom: 5).note
+            == "The history is full, so nothing was restored. Raise Keep last to make room.")
+        #expect(RestoreResult(restored: 38, noRoom: 12).note
+            == "Restored 38 items. 12 did not fit: raise Keep last to restore them.")
+        #expect(RestoreResult(restored: 1, noRoom: 0, failed: 1).note
+            == "Restored 1 item. 1 could not be moved back and is still in the cleared history.")
+        #expect(RestoreResult(restored: 2, noRoom: 3, failed: 2).note
+            == "Restored 2 items. 3 did not fit: raise Keep last to restore them. "
+            + "2 could not be moved back and are still in the cleared history.")
     }
 }
 

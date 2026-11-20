@@ -296,8 +296,9 @@ instead.
   note 'Each clear is deleted 24 hours after it was made.'. When a restore leaves items
   behind because the history is full, a line under the buttons says
   how many were restored and how many did not fit, or that nothing
-  was restored, and suggests raising Keep last. The row is shown only
-  while there is a cleared history.
+  was restored, and suggests raising Keep last. Items that could not
+  be moved back are counted on that line too, as still in the cleared
+  history. The row is shown only while there is a cleared history.
 
 History size, shortcut, panel position and the panel options are
 stored in the app's preferences.
