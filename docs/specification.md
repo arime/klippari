@@ -74,7 +74,10 @@ without the mouse.
   format (`20261120T060413Z`); two clears in the same second share
   one. Earlier clears are kept, so clearing twice loses nothing. An
   archived item with the same content as one cleared now gives way to
-  the newer one. An item that cannot be moved stays in the history.
+  the newer one. An item kept only in memory, because saving it
+  failed, is saved into the clear's folder. An item that can be
+  neither moved nor saved stays in the history and is left out of the
+  count the notice gives, so everything it counts can be restored.
   An archive left flat by earlier builds of this change, with item
   folders directly in `items-archive`, becomes one clear at launch,
   dated by the folder's modification time. Restoring moves back as many archived
