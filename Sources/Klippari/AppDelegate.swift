@@ -22,6 +22,7 @@ import os
     private static let logger = Logger(subsystem: "com.arime.Klippari", category: "app")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        StorageLocation.removeAbandonedUnsaved(in: StorageLocation.defaultCaches)
         open(openStorage())
         hotKey = HotKey(shortcut: settings.shortcut) { [weak self] in
             self?.hotKeyPressed()

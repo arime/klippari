@@ -24,16 +24,34 @@ public enum StorageLocation {
     /// Where a run that cannot save keeps its items: a new folder in
     /// `caches`, Klippari's folder in the user's Caches. Unlike the
     /// temporary folder, which macOS empties of files left unread for a
-    /// few days, it lasts as long as the run. Folders left by earlier
-    /// runs that did not end cleanly are deleted first: the key for them
-    /// was only ever in memory, so nothing in them can be read.
+    /// few days, it lasts as long as the run. The folder names this
+    /// process as its owner, so another Klippari leaves it alone.
     public static func unsavedItemsRoot(in caches: URL) -> URL {
+        let folder = caches.appendingPathComponent(unsavedPrefix + UUID().uuidString + ".noindex")
+        let fm = FileManager.default
+        try? fm.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        fm.createFile(
+            atPath: folder.appendingPathComponent(ownerName).path,
+            contents: Data(String(getpid()).utf8), attributes: [.posixPermissions: 0o600]
+        )
+        return folder.appendingPathComponent("items")
+    }
+
+    /// Deletes the folders of unsaved runs that ended without cleaning up
+    /// (a crash, a kill, a logout), at every launch. Their key was only
+    /// ever in memory, so nothing in them can be read. A folder whose
+    /// owner is still running is kept.
+    public static func removeAbandonedUnsaved(
+        in caches: URL, isRunning: (pid_t) -> Bool = { kill($0, 0) == 0 || errno == EPERM }
+    ) {
         let fm = FileManager.default
         for name in (try? fm.contentsOfDirectory(atPath: caches.path)) ?? [] where name.hasPrefix(unsavedPrefix) {
-            try? fm.removeItem(at: caches.appendingPathComponent(name))
+            let folder = caches.appendingPathComponent(name)
+            let owner = (try? String(contentsOf: folder.appendingPathComponent(ownerName), encoding: .utf8))
+                .flatMap { pid_t($0) }
+            if let owner, isRunning(owner) { continue }
+            try? fm.removeItem(at: folder)
         }
-        return caches.appendingPathComponent(unsavedPrefix + UUID().uuidString + ".noindex")
-            .appendingPathComponent("items")
     }
 
     public static var defaultCaches: URL {
@@ -42,6 +60,7 @@ public enum StorageLocation {
     }
 
     private static let unsavedPrefix = "unsaved-"
+    private static let ownerName = "owner"
 
     /// The archive next to an items folder: 'items.noindex' archives to
     /// 'items-archive.noindex'.
