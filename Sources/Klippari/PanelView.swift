@@ -41,19 +41,33 @@ enum PanelMetrics {
 
 /// Decrypted row thumbnails, so a redraw does not decrypt them again.
 /// An item's thumbnail never changes, so entries never go stale; the
-/// oldest are dropped past `limit`.
+/// oldest are dropped past `limit`. A thumbnail that is missing or does
+/// not open is remembered too, so it is not read again on every redraw.
+/// `keep` drops the entries of items no longer listed.
 @MainActor final class ThumbnailCache {
     private var images: [UUID: NSImage] = [:]
+    private var misses: Set<UUID> = []
     private var order: [UUID] = []
     private let limit = 100
 
     func image(for id: UUID, in storage: ItemStorage) -> NSImage? {
         if let image = images[id] { return image }
-        guard let image = storage.thumbnail(for: id).flatMap(NSImage.init(data:)) else { return nil }
+        guard !misses.contains(id) else { return nil }
+        guard let image = storage.thumbnail(for: id).flatMap(NSImage.init(data:)) else {
+            misses.insert(id)
+            return nil
+        }
         images[id] = image
         order.append(id)
         if order.count > limit { images[order.removeFirst()] = nil }
         return image
+    }
+
+    /// Forgets every item not in `ids`: deleted, cleared or filtered out.
+    func keep(_ ids: Set<UUID>) {
+        images = images.filter { ids.contains($0.key) }
+        misses.formIntersection(ids)
+        order.removeAll { !ids.contains($0) }
     }
 }
 
@@ -112,6 +126,7 @@ struct PanelView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: focus.cardAtBottom ? .bottom : .top)
         .onAppear { filterFocused = true }
         .onChange(of: focus.showCount) { filterFocused = true }
+        .onChange(of: model.rows.map(\.id)) { _, ids in thumbnails.keep(Set(ids)) }
     }
 
     private var searchRow: some View {
