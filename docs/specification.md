@@ -76,6 +76,19 @@ without the mouse.
   the new one.
   If the key has come back by then, nothing is deleted and the saved
   history opens with it.
+- A `key-check` file in the Klippari folder, sealed with the key, is
+  written once the history opens with the key and nothing plain is
+  left. At launch, a key that does not open it, or (before it exists)
+  a key that opens none of the sealed items, is the wrong key: the
+  history is not saved that run, for the same reasons, and the menu
+  offers Reset Saved History…, which deletes what the key cannot open
+  and goes on saving with it. A new key removes an old `key-check`.
+- While the history is saved, items on disk that the key cannot open
+  are counted: sealed with another key, in no known form, and, once
+  `key-check` exists, still plain (version 1.0 run again, or a file
+  put there by something else; these are not taken into the
+  history). The menu then shows 'N saved items can't be read' and
+  Delete Unreadable Items…, which deletes them after a confirmation.
 - Spotlight and backups are kept out: the folder names end in
   `.noindex`, which Spotlight skips, and the Klippari folder is
   excluded from backups. It also holds a `.metadata_never_index` file,
