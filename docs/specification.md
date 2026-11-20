@@ -76,8 +76,10 @@ without the mouse.
   If the key has come back by then, nothing is deleted and the saved
   history opens with it.
 - Spotlight and backups are kept out: the folder names end in
-  `.noindex`, the Klippari folder holds a `.metadata_never_index` file
-  and is excluded from backups.
+  `.noindex`, which Spotlight skips, and the Klippari folder is
+  excluded from backups. It also holds a `.metadata_never_index` file,
+  a further hint that Spotlight may not honour outside a volume's
+  root.
 - Version 1.0 kept the history as plain files in `items`, and builds
   before encryption kept the cleared history in `items-archive`. On
   launch these are renamed to their `.noindex` names and every plain
