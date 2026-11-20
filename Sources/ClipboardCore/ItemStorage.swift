@@ -194,10 +194,13 @@ public struct ItemStorage: Sendable {
 
     /// Encrypts items written before the history was encrypted: each one
     /// is read in plain form, saved again sealed (which replaces its
-    /// directory) and so loses its plain files. Items that cannot be read
-    /// whole are removed. An item that fails to save (a full disk) is
-    /// left as it was, to be tried again on the next launch. Returns how
-    /// many items were encrypted.
+    /// directory) and so loses its plain files. A plain item whose data
+    /// files cannot all be read is removed, as loading did before. A
+    /// manifest that is neither sealed nor a plain one (a later format,
+    /// or a sealed one with damaged first bytes) is left alone: it is not
+    /// known to be unreadable. An item that fails to save (a full disk)
+    /// is left as it was, to be tried again on the next launch. Returns
+    /// how many items were encrypted.
     @discardableResult
     public func sealPlainItems() -> Int {
         let fm = FileManager.default
@@ -208,9 +211,10 @@ public struct ItemStorage: Sendable {
             guard let raw = try? Data(contentsOf: url.appendingPathComponent(Self.manifestName)),
                   !ItemCipher.isSealed(raw)
             else { continue }
-            guard let manifest = try? JSONDecoder().decode(Manifest.self, from: raw), manifest.id == id,
-                  let full = content(of: manifest, in: url, full: true, plain: true), full.isComplete
-            else {
+            guard let manifest = try? JSONDecoder().decode(Manifest.self, from: raw), manifest.id == id else {
+                continue
+            }
+            guard let full = content(of: manifest, in: url, full: true, plain: true), full.isComplete else {
                 try? fm.removeItem(at: url)
                 continue
             }

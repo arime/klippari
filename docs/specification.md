@@ -78,9 +78,11 @@ without the mouse.
 - Version 1.0 kept the history as plain files in `items`, and builds
   before encryption kept the cleared history in `items-archive`. On
   launch these are renamed to their `.noindex` names and every plain
-  item is encrypted in place, in each clear's folder too. An item that
-  cannot be read whole is removed; one that cannot be saved (a full
-  disk) is left as it is and tried again on the next launch. A clear
+  item is encrypted in place, in each clear's folder too. A plain item
+  whose data cannot be read whole is removed; a manifest that is
+  neither sealed nor plain JSON is left alone; an item that cannot be
+  saved (a full disk) is left as it is and tried again on the next
+  launch. A clear
   keeps its date, which is in its folder's name; a flat archive gets
   its 24 hours from the move.
 - Each item has its own directory named by its identifier, containing:
