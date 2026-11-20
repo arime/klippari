@@ -37,6 +37,13 @@ Expected behaviour is defined in `specification.md`.
       restored. Raising Keep last and pressing Restore again brings
       back the rest.
 - [ ] Delete under Cleared history removes it, and the row goes away.
+- [ ] After two clears an hour or more apart, Settings says 'last
+      cleared' with the time of the second. A day after the first
+      clear, its items are gone and the second clear's are still
+      there; a day after the second, the row goes away.
+- [ ] Starting a build of this version over a cleared history left by
+      an earlier build keeps it: Settings shows it with the date it
+      had, and Restore brings it back.
 - [ ] The panel looks right in light and dark mode, over light and
       dark windows, including its corners and blur.
 - [ ] An image row shows a thumbnail.

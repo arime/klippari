@@ -4,11 +4,15 @@ import os
 /// The cleared history, which can be restored.
 public struct ArchiveSummary: Equatable, Sendable {
     public var count: Int
+    /// When the last clear was made.
     public var archivedAt: Date
+    /// How many clears the items come from.
+    public var clears: Int
 
-    public init(count: Int, archivedAt: Date) {
+    public init(count: Int, archivedAt: Date, clears: Int = 1) {
         self.count = count
         self.archivedAt = archivedAt
+        self.clears = clears
     }
 }
 
@@ -29,13 +33,18 @@ public struct RestoreResult: Equatable, Sendable {
 /// carry lightened content (text and file URLs only); images and other
 /// large data stay on disk until an item is pasted.
 @MainActor public final class HistoryStore {
-    /// How long the cleared history can be restored after the last clear.
+    /// How long each clear can be restored after it was made.
     public static let archiveLifetime: TimeInterval = 24 * 60 * 60
+    /// The most the cleared history may take on disk, in bytes. Past
+    /// it the oldest clears are deleted, though never the last one.
+    public var archiveSizeLimit: Int64 = 1_000_000_000
 
     private let storage: ItemStorage
     /// Where clearing the history moves it, so clearing can be
-    /// undone: next to the storage, as '<storage folder>-archive'.
+    /// undone: next to the storage, as '<storage folder>-archive', with
+    /// a folder for each clear.
     public let archiveRoot: URL
+    private var archive: ClearedHistory { ClearedHistory(root: archiveRoot) }
     private static let logger = Logger(subsystem: "com.arime.Klippari", category: "store")
 
     public private(set) var items: [ClipItem]
@@ -58,6 +67,7 @@ public struct RestoreResult: Equatable, Sendable {
         self.limit = limit
         self.items = storage.loadAll()
         trim()
+        archive.adoptFlatLayout()
     }
 
     /// Records a copy. Content identical to an existing item moves that
@@ -107,28 +117,31 @@ public struct RestoreResult: Equatable, Sendable {
         onChange?()
     }
 
-    /// Clears the history by moving it to the archive, adding to what was
-    /// cleared before: an archived copy of something cleared again now
-    /// gives way to the newer one. The archive's date restarts. Returns
-    /// how many items were cleared. An item whose files could not be
-    /// moved stays in the history; 0 means nothing changed.
+    /// Clears the history by moving it to the archive, as a clear of its
+    /// own beside those made before: an archived copy of something
+    /// cleared again now gives way to the newer one. Returns how many
+    /// items were cleared. An item whose files could not be moved stays
+    /// in the history; 0 means nothing changed. If the archive has grown
+    /// past `archiveSizeLimit`, the oldest clears are deleted.
     @discardableResult
     public func archiveAll(now: Date) -> Int {
         guard !items.isEmpty else { return 0 }
-        let archive = ItemStorage(root: archiveRoot)
-        let earlier = archive.loadAll()
-        let (moved, left) = storage.archiveAll(to: archive, at: now)
+        let archive = archive
+        let earlier = archive.items()
+        let clear = archive.storage(for: now)
+        let (moved, left) = storage.archiveAll(to: clear)
         if !left.isEmpty {
             Self.logger.error("Could not archive \(left.count) items")
         }
 
         let cleared = Set(items.filter { moved.contains($0.id) }.map(\.contentHash))
-        for old in earlier where cleared.contains(old.contentHash) && !moved.contains(old.id) {
-            archive.delete(id: old.id)
-            // Deleting touched the archive, and so its date.
-            try? FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: archiveRoot.path)
+        for old in earlier where cleared.contains(old.item.contentHash) {
+            // The same item moved into the same folder has replaced itself.
+            if old.clear.storage.root.path == clear.root.path && moved.contains(old.item.id) { continue }
+            old.clear.storage.delete(id: old.item.id)
         }
-        removeArchiveIfEmpty()
+        archive.removeEmpty()
+        archive.trim(toBytes: archiveSizeLimit)
 
         // Whatever is not left on disk is gone from the history, so the
         // list never shows an item whose files have moved.
@@ -139,24 +152,15 @@ public struct RestoreResult: Equatable, Sendable {
         return before - items.count
     }
 
-    /// The archive folder is only kept while it holds something.
-    private func removeArchiveIfEmpty() {
-        let fm = FileManager.default
-        guard let names = try? fm.contentsOfDirectory(atPath: archiveRoot.path),
-              !names.contains(where: { UUID(uuidString: $0) != nil })
-        else { return }
-        try? fm.removeItem(at: archiveRoot)
-    }
-
     /// The archived history, if there is one.
     public var archiveSummary: ArchiveSummary? {
-        let fm = FileManager.default
-        guard let names = try? fm.contentsOfDirectory(atPath: archiveRoot.path) else { return nil }
-        let count = names.filter { UUID(uuidString: $0) != nil }.count
-        guard count > 0,
-              let date = (try? fm.attributesOfItem(atPath: archiveRoot.path))?[.modificationDate] as? Date
-        else { return nil }
-        return ArchiveSummary(count: count, archivedAt: date)
+        archive.summary
+    }
+
+    /// When the oldest clear is due to be deleted; nil when nothing is
+    /// cleared.
+    public var nextArchiveExpiry: Date? {
+        archive.nextExpiry(lifetime: Self.archiveLifetime)
     }
 
     /// Deletes the archive for good.
@@ -164,17 +168,11 @@ public struct RestoreResult: Equatable, Sendable {
         try? FileManager.default.removeItem(at: archiveRoot)
     }
 
-    /// Deletes the archive once it is older than `archiveLifetime`, or
-    /// when it holds nothing. Returns whether it was deleted.
+    /// Deletes each clear `archiveLifetime` after it was made. Returns
+    /// whether any was deleted.
     @discardableResult
     public func expireArchive(now: Date) -> Bool {
-        guard FileManager.default.fileExists(atPath: archiveRoot.path) else { return false }
-        if let summary = archiveSummary,
-           now.timeIntervalSince(summary.archivedAt) < Self.archiveLifetime {
-            return false
-        }
-        deleteArchive()
-        return true
+        archive.expire(now: now, lifetime: Self.archiveLifetime)
     }
 
     /// Puts back as many archived items as the history has room for,
@@ -183,43 +181,35 @@ public struct RestoreResult: Equatable, Sendable {
     /// deletes an item or pushes one out of the history. The only thing
     /// it removes from the archive besides what came back is a copy of
     /// something already in the history. An item that could not be
-    /// moved stays there too, with the archive's date, to be restored
-    /// later.
+    /// moved stays there too, in its clear, to be restored later.
     @discardableResult
     public func restoreArchive() -> RestoreResult {
-        let fm = FileManager.default
-        guard fm.fileExists(atPath: archiveRoot.path) else { return RestoreResult(restored: 0, noRoom: 0) }
-        let archivedAt = (try? fm.attributesOfItem(atPath: archiveRoot.path))?[.modificationDate]
-        let archive = ItemStorage(root: archiveRoot)
+        let archive = archive
         var seen = Set(items.map(\.contentHash))
-        var waiting: [ClipItem] = []
+        var waiting: [(item: ClipItem, clear: ClearedHistory.Clear)] = []
         // Newest first, so a second copy of the same content is the older.
-        for item in archive.loadAll() {
-            if seen.insert(item.contentHash).inserted {
-                waiting.append(item)
+        for old in archive.items() {
+            if seen.insert(old.item.contentHash).inserted {
+                waiting.append(old)
             } else {
-                archive.delete(id: item.id)
+                old.clear.storage.delete(id: old.item.id)
             }
         }
 
         let room = max(limit - items.count, 0)
         var restored = 0
         var tried = 0
-        for item in waiting where restored < room {
+        for (item, clear) in waiting where restored < room {
             tried += 1
             do {
-                try archive.move(id: item.id, to: storage)
+                try clear.storage.move(id: item.id, to: storage)
                 items.append(item)
                 restored += 1
             } catch {
                 Self.logger.error("Could not restore item: \(error.localizedDescription, privacy: .public)")
             }
         }
-        removeArchiveIfEmpty()
-        if let archivedAt {
-            // Moving items out touched what is left of the archive.
-            try? fm.setAttributes([.modificationDate: archivedAt], ofItemAtPath: archiveRoot.path)
-        }
+        archive.removeEmpty()
         if restored > 0 {
             items.sort { $0.lastUsedAt > $1.lastUsedAt }
             onChange?()

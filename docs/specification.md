@@ -68,21 +68,29 @@ without the mouse.
 - In memory, an item keeps only its plain text and file URLs. All other
   data is read from disk when the item is pasted.
 - Moving an item to the top rewrites only its manifest.
-- Clearing the history moves every item's directory into
-  `items-archive` beside `items`, adding to what was cleared before, so
-  clearing twice loses nothing. An archived item with the same id or
-  the same content as one cleared now gives way to the newer one. The
-  archive's date is that of the last clear. An item that cannot be
-  moved stays in the history. Restoring moves back as many archived
+- Clearing the history moves every item's directory into a folder of
+  its own for that clear, `items-archive/<time>/`, beside `items`. The
+  folder is named by the time of the clear in UTC, ISO 8601 basic
+  format (`20261120T060413Z`); two clears in the same second share
+  one. Earlier clears are kept, so clearing twice loses nothing. An
+  archived item with the same content as one cleared now gives way to
+  the newer one. An item that cannot be moved stays in the history.
+  An archive left flat by earlier builds of this change, with item
+  folders directly in `items-archive`, becomes one clear at launch,
+  dated by the folder's modification time. Restoring moves back as many archived
   items as the history has room for (the history size minus the items
   in it), newest last-used time first, and orders everything by
   last-used time. The rest stay in the archive, so a restore never
   deletes an item or pushes one out of the history; an archived copy
   of something already in the history is dropped. An item that could
-  not be moved stays in the archive too, and the archive is removed
-  once it is empty.
-- The archive is deleted 24 hours after the last clear, checked at
-  launch and every 15 seconds, or at once with Delete in Settings.
+  not be moved stays in the archive too. A clear's folder is removed
+  once it is empty, and `items-archive` once no clear is left.
+- Each clear is deleted 24 hours after it was made, checked at launch
+  and every 15 seconds. Delete in Settings deletes every clear at
+  once.
+- The archive may take at most 1 GB. When a clear takes it past that,
+  the oldest clears are deleted until it fits, but never the clear
+  just made, so it can always be restored.
 - Items are ordered by last-used time, newest first.
 
 ## The panel
@@ -267,9 +275,10 @@ instead.
   or else the mouse pointer. Off by default.
 - **Images**: enlarge the selected image beside the panel. Off by
   default.
-- **Cleared history**: the size of the cleared history and the date
-  of the last clear, with Restore and Delete below and a note that it
-  is deleted 24 hours after clearing. When a restore leaves items
+- **Cleared history**: the number of items in the cleared history and
+  the date of the clear ('cleared …', or 'last cleared …' when it
+  comes from more than one), with Restore and Delete below and the
+  note 'Each clear is deleted 24 hours after it was made.'. When a restore leaves items
   behind because the history is full, a line under the buttons says
   how many were restored and how many did not fit, or that nothing
   was restored, and suggests raising Keep last. The row is shown only

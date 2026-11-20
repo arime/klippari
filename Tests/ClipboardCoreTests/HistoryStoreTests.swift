@@ -158,7 +158,7 @@ func at(_ seconds: TimeInterval) -> Date {
         store.add(text("c"), sourceApp: nil, now: at(11))
         #expect(store.archiveAll(now: at(20)) == 1)
         // Both clears are there, and the date is the last clear's.
-        #expect(store.archiveSummary == ArchiveSummary(count: 3, archivedAt: at(20)))
+        #expect(store.archiveSummary == ArchiveSummary(count: 3, archivedAt: at(20), clears: 2))
         #expect(store.restoreArchive() == RestoreResult(restored: 3, noRoom: 0))
         #expect(store.items.map(\.content) == [text("c"), text("b"), text("a")])
     }
@@ -170,7 +170,7 @@ func at(_ seconds: TimeInterval) -> Date {
         store.archiveAll(now: at(10))
         let newer = store.add(text("a"), sourceApp: nil, now: at(11))
         store.archiveAll(now: at(20))
-        #expect(store.archiveSummary == ArchiveSummary(count: 2, archivedAt: at(20)))
+        #expect(store.archiveSummary == ArchiveSummary(count: 2, archivedAt: at(20), clears: 2))
         store.restoreArchive()
         #expect(store.items.map(\.content) == [text("a"), text("b")])
         #expect(store.items[0].id == newer.id)
@@ -311,15 +311,83 @@ func at(_ seconds: TimeInterval) -> Date {
         #expect(!FileManager.default.fileExists(atPath: store.archiveRoot.path))
     }
 
-    @Test func archiveExpiresADayAfterTheLastClear() {
+    @Test func eachClearExpires24HoursAfterItWasMade() {
         let store = HistoryStore(storage: ItemStorage(root: root))
+        let day = HistoryStore.archiveLifetime
         store.add(text("a"), sourceApp: nil, now: at(0))
         store.archiveAll(now: at(10))
         store.add(text("b"), sourceApp: nil, now: at(20))
         store.archiveAll(now: at(30))
-        #expect(!store.expireArchive(now: at(30 + HistoryStore.archiveLifetime - 1)))
-        #expect(store.archiveSummary?.count == 2)
-        #expect(store.expireArchive(now: at(30 + HistoryStore.archiveLifetime)))
+        #expect(store.nextArchiveExpiry == at(10 + day))
+
+        #expect(!store.expireArchive(now: at(10 + day - 1)))
+        #expect(store.archiveSummary == ArchiveSummary(count: 2, archivedAt: at(30), clears: 2))
+        // The first clear goes on its own day, not the last clear's.
+        #expect(store.expireArchive(now: at(10 + day)))
+        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(30)))
+        #expect(store.nextArchiveExpiry == at(30 + day))
+        store.restoreArchive()
+        #expect(store.items.map(\.content) == [text("b")])
+    }
+
+    @Test func clearingEveryDayStillExpiresOlderClears() {
+        let store = HistoryStore(storage: ItemStorage(root: root))
+        let day = HistoryStore.archiveLifetime
+        for (index, name) in ["a", "b", "c"].enumerated() {
+            let time = Double(index) * day * 0.75
+            store.add(text(name), sourceApp: nil, now: at(time))
+            store.archiveAll(now: at(time + 1))
+        }
+        // Cleared at 0, 0.75 and 1.5 days: at 1.5 days only the first is
+        // a day old.
+        #expect(store.expireArchive(now: at(day * 1.5 + 1)))
+        #expect(store.archiveSummary == ArchiveSummary(count: 2, archivedAt: at(day * 1.5 + 1), clears: 2))
+        #expect(store.expireArchive(now: at(day * 2.5 + 1)))
         #expect(store.archiveSummary == nil)
+        #expect(store.nextArchiveExpiry == nil)
+        #expect(!FileManager.default.fileExists(atPath: store.archiveRoot.path))
+    }
+
+    @Test func aFlatArchiveFromAnEarlierBuildBecomesOneClear() throws {
+        let archiveRoot = root.deletingLastPathComponent().appendingPathComponent("items-archive")
+        let flat = ItemStorage(root: archiveRoot)
+        try flat.save(makeItem(text("a"), lastUsed: 1))
+        try flat.save(makeItem(text("b"), lastUsed: 2))
+        try FileManager.default.setAttributes([.modificationDate: at(5)], ofItemAtPath: archiveRoot.path)
+
+        let store = HistoryStore(storage: ItemStorage(root: root))
+        #expect(store.archiveRoot.path == archiveRoot.path)
+        #expect(store.archiveSummary == ArchiveSummary(count: 2, archivedAt: at(5)))
+        let names = try FileManager.default.contentsOfDirectory(atPath: archiveRoot.path)
+        #expect(!names.contains { UUID(uuidString: $0) != nil })
+        #expect(store.nextArchiveExpiry == at(5 + HistoryStore.archiveLifetime))
+        store.add(text("c"), sourceApp: nil, now: at(6))
+        store.archiveAll(now: at(7))
+        #expect(store.archiveSummary == ArchiveSummary(count: 3, archivedAt: at(7), clears: 2))
+        #expect(store.expireArchive(now: at(5 + HistoryStore.archiveLifetime)))
+        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(7)))
+    }
+
+    @Test func pastTheSizeLimitTheOldestClearsGo() {
+        let store = HistoryStore(storage: ItemStorage(root: root))
+        // Each clear takes a little over 10 000 bytes; two fit.
+        store.archiveSizeLimit = 25_000
+        for (index, name) in ["a", "b", "c"].enumerated() {
+            store.add(text(String(repeating: name, count: 10_000)), sourceApp: nil, now: at(Double(index * 10)))
+            store.archiveAll(now: at(Double(index * 10 + 1)))
+        }
+        #expect(store.archiveSummary == ArchiveSummary(count: 2, archivedAt: at(21), clears: 2))
+        store.restoreArchive()
+        #expect(store.items.map(\.content) == [
+            text(String(repeating: "c", count: 10_000)), text(String(repeating: "b", count: 10_000)),
+        ])
+    }
+
+    @Test func theLastClearIsKeptEvenOverTheSizeLimit() {
+        let store = HistoryStore(storage: ItemStorage(root: root))
+        store.archiveSizeLimit = 100
+        store.add(text(String(repeating: "a", count: 10_000)), sourceApp: nil, now: at(0))
+        #expect(store.archiveAll(now: at(1)) == 1)
+        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(1)))
     }
 }

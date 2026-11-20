@@ -34,7 +34,9 @@ import SwiftUI
         let defaults = UserDefaults(suiteName: "Klippari-snapshot-\(UUID().uuidString)") ?? .standard
         let settings = Settings(defaults: defaults)
         if arguments.contains("archive") {
-            settings.archive = ArchiveSummary(count: 12, archivedAt: now.addingTimeInterval(-3600))
+            settings.archive = ArchiveSummary(
+                count: 12, archivedAt: now.addingTimeInterval(-3600), clears: arguments.contains("full") ? 3 : 1
+            )
             if arguments.contains("full") {
                 settings.restoreNote = "Restored 38 items. 12 did not fit: raise Keep last to restore them."
             }
