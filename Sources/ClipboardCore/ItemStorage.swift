@@ -20,7 +20,7 @@ public struct ItemStorage: Sendable {
     }
 
     public let root: URL
-    let cipher: ItemCipher
+    public let cipher: ItemCipher
 
     private struct Manifest: Codable {
         struct TypeRecord: Codable {
@@ -361,6 +361,79 @@ public struct ItemStorage: Sendable {
             if ItemCipher.isSealed(head) { found.append(url) }
         }
         return (found, unsure)
+    }
+
+    /// Every sealed item folder in `root` and in its clears' folders.
+    static func sealedItemFolders(in root: URL) -> [URL] {
+        scan(root, foldersDeep: 1, upTo: .max).sealed
+    }
+
+    /// Whether the item in `folder` has a manifest that opens with
+    /// `cipher` and names that item.
+    static func manifestOpens(_ folder: URL, with cipher: ItemCipher) -> Bool {
+        guard let id = UUID(uuidString: folder.lastPathComponent),
+              let raw = try? Data(contentsOf: folder.appendingPathComponent(manifestName)),
+              let opened = try? cipher.open(raw, context: context(id, manifestName))
+        else { return false }
+        return (try? JSONDecoder().decode(Manifest.self, from: opened))?.id == id
+    }
+
+    /// What an item's manifest is, read without changing anything.
+    private enum ManifestForm {
+        /// Not there, or there but unreadable for now: left to loading.
+        case notRead
+        case sealed(Data)
+        /// A 1.0 manifest, written before encryption.
+        case plain
+        /// Neither: a later format, or a sealed one with damaged bytes.
+        case unknown
+    }
+
+    private static func manifestForm(_ folder: URL) -> ManifestForm {
+        guard let id = UUID(uuidString: folder.lastPathComponent),
+              let raw = try? Data(contentsOf: folder.appendingPathComponent(manifestName)), !raw.isEmpty
+        else { return .notRead }
+        if ItemCipher.isSealed(raw) { return .sealed(raw) }
+        if (try? JSONDecoder().decode(Manifest.self, from: raw))?.id == id { return .plain }
+        return .unknown
+    }
+
+    /// Item folders in `roots` and in their clears' folders, without
+    /// following symbolic links.
+    private static func itemFolders(in roots: [URL]) -> [URL] {
+        let fm = FileManager.default
+        func folders(in root: URL, foldersDeep: Int) -> [URL] {
+            ((try? fm.contentsOfDirectory(atPath: root.path)) ?? []).flatMap { name -> [URL] in
+                let url = root.appendingPathComponent(name)
+                guard fm.isRealDirectory(url) else { return [] }
+                if UUID(uuidString: name) != nil { return [url] }
+                return foldersDeep > 0 ? folders(in: url, foldersDeep: foldersDeep - 1) : []
+            }
+        }
+        return roots.flatMap { folders(in: $0, foldersDeep: 1) }
+    }
+
+    /// Whether `roots` hold an item still in 1.0's plain form.
+    public static func holdsPlainItems(in roots: [URL]) -> Bool {
+        itemFolders(in: roots).contains {
+            if case .plain = manifestForm($0) { return true }
+            return false
+        }
+    }
+
+    /// The items in `roots` that `cipher` cannot open: sealed with
+    /// another key, or in no known form, and with `countingPlain` also
+    /// those still in plain form. A manifest that cannot be read right
+    /// now is not counted. Loading skips all of these and leaves them.
+    public static func unreadableItems(in roots: [URL], cipher: ItemCipher, countingPlain: Bool) -> [URL] {
+        itemFolders(in: roots).filter { folder in
+            switch manifestForm(folder) {
+            case .notRead: false
+            case .sealed: !manifestOpens(folder, with: cipher)
+            case .plain: countingPlain
+            case .unknown: true
+            }
+        }
     }
 
     /// Whether `error` says the file is not there, rather than that it
