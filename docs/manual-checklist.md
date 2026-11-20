@@ -131,6 +131,14 @@ Expected behaviour is defined in `specification.md`.
       the default; Return and Escape both cancel. After Reset the old files are gone, the two menu
       lines and the footer warning disappear, what was copied since
       launch is still listed, and it is still there after a relaunch.
+- [ ] With a different 'Klippari history key' put in the keychain (an
+      older keychain restored, say), Klippari relaunched says 'The key
+      in the keychain doesn't open it', keeps the old files, and
+      Reset Saved History… deletes them and goes on saving with that
+      key.
+- [ ] A plain 1.0 item put into `items.noindex` after the first launch
+      shows as '1 saved item can't be read', is not listed, and
+      Delete Unreadable Items… removes it.
 - [ ] Lowering the history size trims the list at once.
 - [ ] Shortcut field: Return arms it, Esc cancels, Cmd+V and Cmd+Q are
       refused, and a failed registration keeps the previous shortcut.

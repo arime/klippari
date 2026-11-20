@@ -63,9 +63,13 @@ The menu bar icon has:
 
 - **Pause/Resume Capture**: stop and restart recording.
 - **Reset Saved History…**: only shown when the saved history cannot
-  be read because its key is gone from the keychain. Deletes what that
-  key encrypted, after a confirmation, and starts saving again with a
-  new key.
+  be read because its key is gone from the keychain, or the keychain
+  holds another key. Deletes what cannot be read, after a
+  confirmation, and starts saving again: with a new key, or with the
+  one in the keychain.
+- **Delete Unreadable Items…**: only shown, under a line counting
+  them, when the history is saved but some items on disk cannot be
+  read with its key. Deletes them, after a confirmation.
 - **Clear History**: clear every item, after a confirmation. Settings
   can restore what was cleared.
 - **Reset Panel Position**: put the panel back in the middle.
@@ -158,7 +162,10 @@ Reading the clipboard in the background needs no permission.
 History is kept in `~/Library/Application Support/Klippari/items.noindex`,
 one folder per item, readable only by you and encrypted with a key kept
 in your login keychain. Other apps that ask the keychain for that key
-make macOS ask you first; deny them. If the key cannot be had, the
+make macOS ask you first; deny them. A small `key-check` file beside
+the history tells Klippari whether the key in the keychain is the
+history's, so a key replaced by another app is noticed and not used.
+If the key cannot be had, the
 saved history is left as it is, and the menu and the panel say that
 history isn't being saved until it can. Spotlight and backups skip the
 folder. Settings are in the preferences of `com.arime.Klippari`.

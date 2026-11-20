@@ -12,6 +12,19 @@ import AppKit
         title: "Reset Saved History…", action: #selector(resetSavedHistory), keyEquivalent: ""
     )
     private let unsavedSeparator = NSMenuItem.separator()
+    private let unreadableItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let deleteUnreadableItem = NSMenuItem(
+        title: "Delete Unreadable Items…", action: #selector(deleteUnreadableItems), keyEquivalent: ""
+    )
+    private let unreadableSeparator = NSMenuItem.separator()
+
+    /// How many items on disk the key cannot open while the history is
+    /// saved. The menu then says so, and offers to delete them.
+    var unreadable = 0 {
+        didSet { refresh() }
+    }
+
+    var onDeleteUnreadableItems: (() -> Void)?
 
     /// Why the history is not being saved this run, or nil when it is.
     /// The menu then says so at its top, in two disabled lines.
@@ -20,7 +33,7 @@ import AppKit
     }
 
     /// Called for Reset Saved History…, which is offered only while the
-    /// saved history's key is missing.
+    /// saved history's key is missing or is another one.
     var onResetSavedHistory: (() -> Void)?
     var onClearHistory: (() -> Void)?
     var onOpenSettings: (() -> Void)?
@@ -41,6 +54,12 @@ import AppKit
         resetSavedItem.target = self
         menu.addItem(resetSavedItem)
         menu.addItem(unsavedSeparator)
+        unreadableItem.toolTip = "Encrypted with another key, or not written by Klippari. "
+            + "They stay on disk until they are deleted."
+        menu.addItem(unreadableItem)
+        deleteUnreadableItem.target = self
+        menu.addItem(deleteUnreadableItem)
+        menu.addItem(unreadableSeparator)
         pauseItem.target = self
         menu.addItem(pauseItem)
         menu.addItem(item("Clear History", #selector(clearHistory)))
@@ -82,11 +101,15 @@ import AppKit
         unsavedItem.isHidden = unsaved == nil
         unsavedReasonItem.isHidden = unsaved == nil
         unsavedSeparator.isHidden = unsaved == nil
-        if case .missingKey = unsaved {
-            resetSavedItem.isHidden = false
-        } else {
-            resetSavedItem.isHidden = true
+        switch unsaved {
+        case .missingKey, .wrongKey: resetSavedItem.isHidden = false
+        default: resetSavedItem.isHidden = true
         }
+        let showsUnreadable = unsaved == nil && unreadable > 0
+        unreadableItem.isHidden = !showsUnreadable
+        deleteUnreadableItem.isHidden = !showsUnreadable
+        unreadableSeparator.isHidden = !showsUnreadable
+        unreadableItem.title = unreadable == 1 ? "1 saved item can't be read" : "\(unreadable) saved items can't be read"
         unsavedReasonItem.title = unsaved?.menuReason ?? ""
         unsavedReasonItem.toolTip = unsaved?.detail
         statusItem.button?.appearsDisabled = settings.isPaused
@@ -109,6 +132,10 @@ import AppKit
 
     @objc private func resetSavedHistory() {
         onResetSavedHistory?()
+    }
+
+    @objc private func deleteUnreadableItems() {
+        onDeleteUnreadableItems?()
     }
 
     @objc private func clearHistory() {
