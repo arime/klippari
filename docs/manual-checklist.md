@@ -132,6 +132,13 @@ Expected behaviour is defined in `specification.md`.
       old files are gone, the two menu lines and the footer warning
       disappear, what was copied since
       launch is still listed, and it is still there after a relaunch.
+- [ ] Release builds (Developer ID; needs the signing identity): the
+      first launch on a Mac with no 'Klippari history key' makes the
+      key without a prompt.
+- [ ] Updating from one Developer ID build to the next opens the
+      history without a prompt.
+- [ ] A Mac that ran a dev-signed build first prompts once on moving
+      to the release; Always Allow opens the history.
 - [ ] Deny on the keychain prompt at launch: the menu says history
       isn't being saved, and Try Again, then Always Allow, opens the
       saved history with this run's copies in it.
