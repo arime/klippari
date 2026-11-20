@@ -19,6 +19,28 @@ public enum StorageLocation {
         folder.appendingPathComponent("items.noindex")
     }
 
+    /// Where a run that cannot save keeps its items: a new folder in
+    /// `caches`, Klippari's folder in the user's Caches. Unlike the
+    /// temporary folder, which macOS empties of files left unread for a
+    /// few days, it lasts as long as the run. Folders left by earlier
+    /// runs that did not end cleanly are deleted first: the key for them
+    /// was only ever in memory, so nothing in them can be read.
+    public static func unsavedItemsRoot(in caches: URL) -> URL {
+        let fm = FileManager.default
+        for name in (try? fm.contentsOfDirectory(atPath: caches.path)) ?? [] where name.hasPrefix(unsavedPrefix) {
+            try? fm.removeItem(at: caches.appendingPathComponent(name))
+        }
+        return caches.appendingPathComponent(unsavedPrefix + UUID().uuidString + ".noindex")
+            .appendingPathComponent("items")
+    }
+
+    public static var defaultCaches: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("com.arime.Klippari")
+    }
+
+    private static let unsavedPrefix = "unsaved-"
+
     /// The archive next to an items folder: 'items.noindex' archives to
     /// 'items-archive.noindex'.
     public static func archiveRoot(forItems root: URL) -> URL {
