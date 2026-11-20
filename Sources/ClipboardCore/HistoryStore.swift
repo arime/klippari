@@ -177,6 +177,18 @@ public struct RestoreResult: Equatable, Sendable {
         archive.nextExpiry(lifetime: Self.archiveLifetime)
     }
 
+    /// The shortest wait before checking the cleared history again.
+    public static let archiveRetryInterval: TimeInterval = 60
+
+    /// When to next check the cleared history: when the oldest clear is
+    /// due, but never sooner than `archiveRetryInterval` from `now`. A
+    /// clear that is overdue because it could not be deleted is then
+    /// tried again once a minute, rather than over and over at once.
+    /// Nil when nothing is cleared.
+    public func nextArchiveCheck(now: Date) -> Date? {
+        nextArchiveExpiry.map { max($0, now.addingTimeInterval(Self.archiveRetryInterval)) }
+    }
+
     /// Deletes the archive for good.
     public func deleteArchive() {
         try? FileManager.default.removeItem(at: archiveRoot)

@@ -67,12 +67,14 @@ struct ClearedHistory {
     }
 
     /// Deletes each clear once `lifetime` has passed since it was made.
-    /// Returns whether any was deleted.
+    /// Returns whether any was deleted; one that could not be is left
+    /// for the next check.
     func expire(now: Date, lifetime: TimeInterval) -> Bool {
         var deleted = false
         for clear in clears() where now.timeIntervalSince(clear.date) >= lifetime {
-            try? FileManager.default.removeItem(at: clear.storage.root)
-            deleted = true
+            if (try? FileManager.default.removeItem(at: clear.storage.root)) != nil {
+                deleted = true
+            }
         }
         removeEmpty()
         return deleted
