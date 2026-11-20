@@ -34,6 +34,8 @@ import os
         statusItem = StatusItemController(settings: settings)
         statusItem.unsaved = unsaved
         statusItem.onResetSavedHistory = { [weak self] in self?.confirmResetSavedHistory() }
+        statusItem.onDeleteUnreadableItems = { [weak self] in self?.confirmDeleteUnreadableItems() }
+        statusItem.unreadable = unreadableItems.count
         statusItem.onOpenSettings = { [weak self] in self?.settingsWindow.show() }
         statusItem.onClearHistory = { [weak self] in self?.confirmClearHistory() }
         statusItem.onResetPanelPosition = { [weak self] in self?.settings.panelPlacement = nil }
@@ -59,7 +61,10 @@ import os
     private func open(_ storage: ItemStorage, takingOver previous: HistoryStore? = nil) {
         monitor?.stop()
         panel?.hide()
-        store = HistoryStore(storage: storage, limit: settings.historyLimit)
+        if unsaved == nil {
+            sealPlainHistory(storage)
+        }
+        store = HistoryStore(storage: storage, limit: settings.historyLimit, sealingPlainItems: false)
         if let previous { store.adopt(previous) }
         store.expireArchive(now: Date())
         monitor = ClipboardMonitor(
@@ -75,9 +80,23 @@ import os
             self?.paste(item, plainText: plainText)
         }
         panel.onClearAll = { [weak self] in self?.clearFromPanel() }
-        settings.archive = store.archiveSummary
-        scheduleExpiry()
+        showArchive()
         monitor.start()
+    }
+
+    /// Encrypts the 1.0 history, until the key check says that is done.
+    /// The key check is written once nothing plain is left: from then
+    /// on, plain items no longer belong to the history.
+    private func sealPlainHistory(_ storage: ItemStorage) {
+        let folder = StorageLocation.defaultFolder
+        guard !KeyCheck.exists(in: folder) else { return }
+        if HistoryStore.sealPlainHistory(storage) {
+            do {
+                try KeyCheck.write(storage.cipher, in: folder)
+            } catch {
+                Self.logger.error("Could not write the key check: \(String(describing: error), privacy: .public)")
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -112,31 +131,49 @@ import os
             throw UnsavedHistory.folder(String(describing: error))
         }
         let items = StorageLocation.itemsRoot(in: folder)
+        let roots = [items, StorageLocation.archiveRoot(forItems: items)]
+        let cipher: ItemCipher
         do {
             // Never a new key over a history sealed with a missing one.
-            let key = try ItemCipher.key(
-                stored: KeychainKey.load(),
-                sealedHistoryIn: [items, StorageLocation.archiveRoot(forItems: items)],
-                create: KeychainKey.create
-            )
-            return ItemStorage(root: items, cipher: ItemCipher(key: key))
+            // A key check left by an earlier key goes with it.
+            let key = try ItemCipher.key(stored: KeychainKey.load(), sealedHistoryIn: roots) {
+                KeyCheck.remove(in: folder)
+                return try KeychainKey.create()
+            }
+            cipher = ItemCipher(key: key)
         } catch is ItemCipher.MissingKey {
             throw UnsavedHistory.missingKey
         } catch {
             throw UnsavedHistory.keychain(String(describing: error))
         }
+        // A key that is not the history's is not used either: nothing
+        // could be read with it, and what is copied would be sealed
+        // with a key that may not be the user's.
+        if KeyCheck.verdict(for: cipher, in: folder, sealedHistoryIn: roots) == .wrongKey {
+            throw UnsavedHistory.wrongKey
+        }
+        return ItemStorage(root: items, cipher: cipher)
     }
 
     /// Reset Saved History…, offered in the menu while the saved history
-    /// cannot be read because its key is missing.
+    /// cannot be read because its key is missing or is another one.
     private func confirmResetSavedHistory() {
         let alert = NSAlert()
         alert.alertStyle = .critical
         alert.messageText = "Reset the saved history?"
-        alert.informativeText = "The saved history was encrypted with a key that is no longer in your "
-            + "keychain, so Klippari cannot read it. Resetting deletes it, and the cleared history with it, "
-            + "and starts saving again with a new key. This cannot be undone. "
-            + "What is in the history now is kept, but not what was cleared since Klippari started."
+        if case .wrongKey = unsaved {
+            alert.informativeText = "The saved history was encrypted with another key than the one in your "
+                + "keychain. Resetting deletes what that key cannot open, the cleared history included, "
+                + "and starts saving with it. This cannot be undone. "
+                + "If you did not expect this, cancel, delete 'Klippari history key' in Keychain Access "
+                + "and relaunch Klippari instead. "
+                + "What is in the history now is kept, but not what was cleared since Klippari started."
+        } else {
+            alert.informativeText = "The saved history was encrypted with a key that is no longer in your "
+                + "keychain, so Klippari cannot read it. Resetting deletes it, and the cleared history with it, "
+                + "and starts saving again with a new key. This cannot be undone. "
+                + "What is in the history now is kept, but not what was cleared since Klippari started."
+        }
         alert.addButton(withTitle: "Reset Saved History")
         alert.addButton(withTitle: "Cancel")
         // Return cancels: deleting is never the default.
@@ -158,44 +195,95 @@ import os
             try resetSavedHistory()
         } catch {
             Self.logger.error("Could not reset the saved history: \(String(describing: error), privacy: .public)")
+            stillUnsaved(error)
             let failure = NSAlert()
             failure.messageText = "The saved history could not be reset"
-            failure.informativeText = "\(error)\n\nHistory is still not being saved."
+            failure.informativeText = "\((error as? UnsavedHistory)?.menuReason ?? String(describing: error))."
+                + "\n\nHistory is still not being saved."
             failure.runModal()
         }
     }
 
-    /// Deletes the saved items that cannot be read, makes a new key and
-    /// moves this run's history into the saved folder, without a restart.
+    /// Deletes the saved items that cannot be read and moves this run's
+    /// history into the saved folder, without a restart: with a new key
+    /// when the old one is missing, with the keychain's when it is
+    /// another one.
     private func resetSavedHistory() throws {
-        let items = StorageLocation.itemsRoot(in: StorageLocation.defaultFolder)
-        let archive = StorageLocation.archiveRoot(forItems: items)
-        let key: SymmetricKey
-        if let stored = try KeychainKey.load() {
-            // The key is back (a keychain restored or unlocked since
-            // launch), so the saved history can be read after all, and
-            // nothing is deleted.
-            key = stored
-        } else {
+        let folder = StorageLocation.defaultFolder
+        let items = StorageLocation.itemsRoot(in: folder)
+        let roots = [items, StorageLocation.archiveRoot(forItems: items)]
+        switch unsaved {
+        case .missingKey:
+            // If the key is back (a keychain restored or unlocked since
+            // launch), nothing is deleted, and opening checks it.
+            guard try KeychainKey.load() == nil else { break }
             // Only what was sealed with the lost key goes. Items still in
             // plain form (a migration that did not finish, or version 1.0
-            // run again) are readable; opening the history below encrypts
-            // them with the new key. Should anything sealed be left, no
-            // key is made.
-            for folder in [items, archive] {
-                try ItemStorage.removeSealedItems(folder)
+            // run again) are readable; opening the history encrypts them
+            // with the new key. Should anything sealed be left, no key is
+            // made.
+            for root in roots {
+                try ItemStorage.removeSealedItems(root)
             }
-            key = try ItemCipher.key(stored: nil, sealedHistoryIn: [items, archive], create: KeychainKey.create)
+            KeyCheck.remove(in: folder)
+        case .wrongKey:
+            guard let stored = try KeychainKey.load() else { break }
+            for item in ItemStorage.unreadableItems(in: roots, cipher: ItemCipher(key: stored), countingPlain: false) {
+                try FileManager.default.removeItem(at: item)
+            }
+            KeyCheck.remove(in: folder)
+        default:
+            break
         }
+        try reopenSavedHistory()
+    }
 
+    /// Opens the saved history and moves this run's history into it.
+    /// Throws an `UnsavedHistory` when it still cannot be opened.
+    private func reopenSavedHistory() throws {
+        let storage = try openSavedStorage()
         let temporary = unsavedRoot
         unsaved = nil
         unsavedRoot = nil
         statusItem.unsaved = nil
-        open(ItemStorage(root: items, cipher: ItemCipher(key: key)), takingOver: store)
+        open(storage, takingOver: store)
         if let temporary {
             try? FileManager.default.removeItem(at: temporary.deletingLastPathComponent())
         }
+    }
+
+    /// Shows the reason after a failed attempt to open the saved history.
+    private func stillUnsaved(_ error: Error) {
+        guard let reason = error as? UnsavedHistory else { return }
+        unsaved = reason
+        statusItem.unsaved = reason
+        model.warning = reason.panelWarning
+    }
+
+    /// Items on disk that the key cannot open: the menu counts them and
+    /// offers to delete them. Once the history has its key check, plain
+    /// items no longer belong to it, so they count too.
+    private var unreadableItems: [URL] {
+        guard unsaved == nil else { return [] }
+        return store.unreadableItems(countingPlain: KeyCheck.exists(in: StorageLocation.defaultFolder))
+    }
+
+    private func confirmDeleteUnreadableItems() {
+        let count = unreadableItems.count
+        guard count > 0 else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Delete \(count == 1 ? "the unreadable item" : "\(count) unreadable items")?"
+        alert.informativeText = "\(count == 1 ? "This item was" : "These items were") encrypted with another "
+            + "key, or not written by Klippari, so Klippari cannot show \(count == 1 ? "it" : "them"). "
+            + "This cannot be undone."
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons[0].hasDestructiveAction = true
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        store.removeUnreadableItems(countingPlain: KeyCheck.exists(in: StorageLocation.defaultFolder))
+        showArchive()
     }
 
     /// Each clear is deleted a day after it was made. One timer waits
@@ -324,6 +412,7 @@ import os
     private func showArchive(note: String? = nil) {
         settings.archive = store.archiveSummary
         settings.restoreNote = note
+        statusItem?.unreadable = unreadableItems.count
         scheduleExpiry()
     }
 
