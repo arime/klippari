@@ -316,6 +316,35 @@ func permissions(_ url: URL) -> Int? {
         #expect(!FileManager.default.fileExists(atPath: folder.appendingPathComponent("items").path))
         #expect(FileManager.default.fileExists(atPath: items.appendingPathComponent(moved.uuidString).path))
     }
+
+    @Test func mergesAnOldClearIntoOneOfTheSameName() throws {
+        let folder = makeFolder()
+        let fm = FileManager.default
+        let archive = StorageLocation.archiveRoot(forItems: StorageLocation.itemsRoot(in: folder))
+        let name = "20261120T060413Z"
+        let kept = try writePlainItem(in: archive.appendingPathComponent(name), text: "kept")
+        let oldArchive = folder.appendingPathComponent("items-archive")
+        let moved = try writePlainItem(in: oldArchive.appendingPathComponent(name), text: "moved")
+        try StorageLocation.prepare(folder)
+        #expect(!fm.fileExists(atPath: oldArchive.path))
+        let clear = archive.appendingPathComponent(name)
+        #expect(fm.fileExists(atPath: clear.appendingPathComponent(kept.uuidString).path))
+        #expect(fm.fileExists(atPath: clear.appendingPathComponent(moved.uuidString).path))
+    }
+
+    @Test func anItemInBothFoldersKeepsTheCurrentCopy() throws {
+        let folder = makeFolder()
+        let fm = FileManager.default
+        let items = StorageLocation.itemsRoot(in: folder)
+        let id = try writePlainItem(in: items, text: "current")
+        let old = folder.appendingPathComponent("items").appendingPathComponent(id.uuidString)
+        try fm.createDirectory(at: old, withIntermediateDirectories: true)
+        try Data("old".utf8).write(to: old.appendingPathComponent("e0-t0.bin"))
+        try StorageLocation.prepare(folder)
+        #expect(!fm.fileExists(atPath: folder.appendingPathComponent("items").path))
+        let data = try Data(contentsOf: items.appendingPathComponent(id.uuidString).appendingPathComponent("e0-t0.bin"))
+        #expect(data == Data("current".utf8))
+    }
 }
 
 @MainActor @Suite struct ArchiveLifetimeTests {
