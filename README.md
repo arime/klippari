@@ -48,22 +48,29 @@ Requires macOS 15 or later, on Apple silicon or Intel.
 | Return                     | Paste the selected item as it was copied  |
 | Shift+Return               | Paste it as plain text                    |
 | Cmd+1 to Cmd+9             | Paste that row straight away              |
-| Typing                     | Filter by text, file name or source app   |
+| Typing                     | Filter by text, file name or source app; `image` or `png` lists images |
 | Cmd+Backspace              | Remove the selected item from the history |
+| Shift+Cmd+Backspace        | Clear the history (restorable in Settings) |
 | Esc                        | Clear the filter, then close              |
 
 The panel shows up to nine rows and scrolls beyond that. Drag it by
-its search row or footer to move it. It reopens where you left it.
+its search row or footer to move it. It reopens where you left it,
+unless Position is on in Settings.
 
 ## Menu bar and settings
 
 The menu bar icon has:
 
 - **Pause/Resume Capture**: stop and restart recording.
-- **Clear History**: remove every item, after a confirmation.
+- **Clear History**: clear every item, after a confirmation. Settings
+  can restore what was cleared for 24 hours.
 - **Reset Panel Position**: put the panel back in the middle.
-- **Settings…**: history size (5 to 500 items), the shortcut, and
-  start at login.
+- **Settings…**: history size (5 to 500 items), the shortcut, start at
+  login, and three panel options, all off by default: **Mouse** (point
+  at a row to select it, click to paste), **Position** (open next to
+  the text field being typed in, or else the pointer) and **Images**
+  (enlarge the selected image beside the panel). After a clear,
+  **Cleared history** offers Restore and Delete.
 - **Quit Klippari**.
 
 To change the shortcut, select the field in Settings, press Return and
@@ -134,7 +141,11 @@ gh release create v1.0.0 build/Klippari-1.0.0.dmg --title 'Klippari 1.0.0'
 - **Accessibility** (System Settings › Privacy & Security ›
   Accessibility). Needed to paste into other apps. Without it, Return
   still puts the item on the clipboard and the panel says what to
-  grant.
+  grant. With Position on in Settings, it is also used to find the text
+  field being typed in. Electron apps, such as Slack or Discord, show
+  their fields only while an assistive tool such as VoiceOver is
+  running. Klippari does not switch that on, so in them the panel
+  opens at the pointer.
 
 Reading the clipboard in the background needs no permission.
 
@@ -142,7 +153,13 @@ Reading the clipboard in the background needs no permission.
 
 History is kept in `~/Library/Application Support/Klippari/items`, one
 folder per item, readable only by you. Settings are in the preferences
-of `com.arime.Klippari`. Clear History in the menu removes every item.
+of `com.arime.Klippari`. Clearing the history moves it to a folder
+for that clear in `items-archive` next to it, beside what was cleared
+before, along with any item that could not be saved when it was copied. Settings
+can restore or delete it. A restore brings back only as many items as
+the history size has room for, newest first, and leaves the rest to
+restore later. Each clear is deleted on its own 24 hours after it was
+made, and the oldest go sooner if the cleared history passes 1 GB.
 
 ## Icon and screenshots
 

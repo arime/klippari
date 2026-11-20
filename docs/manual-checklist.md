@@ -21,13 +21,68 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Arrows, Ctrl+N / Ctrl+P and repeated Shift+Cmd+V move the
       selection.
 - [ ] Typing filters; Esc clears the filter, then closes.
+- [ ] Typing 'image' or 'png' lists images; 'text' and 'file' match
+      only items that contain those words.
 - [ ] Cmd+Backspace deletes the selected row.
+- [ ] Shift+Cmd+Backspace clears every row at once and the notice says
+      how many; Settings then shows them under Cleared history, and
+      Restore brings them back in order, alongside anything copied
+      since.
+- [ ] Clearing, copying something and clearing again keeps both lots:
+      Restore brings back everything from both clears.
+- [ ] With Keep last lowered so the cleared history does not fit,
+      Restore brings back only the newest items that fit, nothing in
+      the history is pushed out, and Settings says how many did not
+      fit. With the history full, Restore says that nothing was
+      restored. Raising Keep last and pressing Restore again brings
+      back the rest.
+- [ ] Delete under Cleared history removes it, and the row goes away.
+- [ ] After two clears an hour or more apart, Settings says 'last
+      cleared' with the time of the second. A day after the first
+      clear, its items are gone and the second clear's are still
+      there; a day after the second, the row goes away.
+- [ ] An item that could not be saved is cleared with the rest: with
+      `~/Library/Application Support/Klippari/items` made read-only
+      (`chmod 500`), copy something, then make it writable again
+      (`chmod 700`) and press Shift+Cmd+Backspace. The notice counts
+      the item, and Restore brings it back.
+- [ ] A clear whose day runs out while the Mac sleeps is gone from
+      Settings right after waking.
+- [ ] Starting a build of this version over a cleared history left by
+      an earlier build keeps it: Settings shows it with the date it
+      had, and Restore brings it back.
 - [ ] The panel looks right in light and dark mode, over light and
       dark windows, including its corners and blur.
 - [ ] An image row shows a thumbnail.
+- [ ] With Images on in Settings, an image in the first row shows
+      large beside the panel on open, and arrowing through the list
+      shows each selected image at once, with no delay or blank frame.
+- [ ] The preview never covers the panel: it is to the right, or to
+      the left when the panel is near the right edge, and stays on
+      screen. Hovering another image's thumbnail shows that one at
+      once; moving off goes back to the selection.
+- [ ] Dragging the panel moves the preview with it, and the panel
+      still has keyboard focus while the preview shows.
 - [ ] The panel can be dragged by its search row and footer, reopens
       where it was left, and still does after a relaunch.
 - [ ] Reset Panel Position in the menu puts it back in the middle.
+- [ ] With Position on in Settings and Accessibility granted, the
+      panel opens just above the text field being typed in, without
+      covering it, wherever the pointer is: in TextEdit, Safari and
+      Notes. In a long document it
+      opens by the caret's line. Without a text field it opens just
+      above the pointer; near the top of the screen it opens below it; near a
+      side or corner it stays fully on screen. Copying while it is
+      open above the pointer grows it upward.
+- [ ] With Position on and a busy or hung app in front, the panel
+      still opens within about 0.2 seconds, by the pointer.
+- [ ] With Position on and VoiceOver off, the panel opens by the
+      pointer over an Electron app (Slack, Discord, Claude), and the
+      app stays as quick as before.
+- [ ] With Position on and VoiceOver running (Cmd+F5), the panel opens
+      by the text field in an Electron app, and by the pointer when
+      focus is on a button. After closing it VoiceOver still reads the
+      app's text fields and buttons. Turn VoiceOver off afterwards.
 - [ ] With more than nine items, scrolling the list with the trackpad
       and reopening shows the first row selected and in view.
 
@@ -35,11 +90,18 @@ Expected behaviour is defined in `specification.md`.
 
 - [ ] Without the Accessibility permission, Return copies the item and
       the panel shows the notice; the system prompt appears once and
-      does not hide the notice.
+      does not hide the notice. Clicking the notice opens System
+      Settings at Privacy & Security › Accessibility.
 - [ ] With the permission, Return pastes into a text editor, a browser
       field and a terminal.
 - [ ] Shift+Return pastes styled text as plain; an image pastes as-is.
 - [ ] Cmd+1 to Cmd+9 paste that row.
+- [ ] With Mouse on in Settings, moving the pointer over a row selects
+      it, a click pastes it and Shift+click pastes plain text. Arrowing
+      with the pointer resting on the list, and opening the panel with
+      the pointer over a row, leave the keyboard selection alone.
+      Pointing at a half-visible row at the list's edge does not scroll
+      the list. With it off, rows ignore the mouse.
 - [ ] A copied file pastes into a Finder window.
 - [ ] The pasted item is first on the next open.
 - [ ] Paste lands reliably in slow and in full-screen apps.
@@ -52,7 +114,7 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Pause stops capture, and resume does not record what was copied
       while paused.
 - [ ] Clear History asks first, then empties the panel and the storage
-      folder.
+      folder, and Settings offers to restore what was cleared.
 - [ ] Lowering the history size trims the list at once.
 - [ ] Shortcut field: Return arms it, Esc cancels, Cmd+V and Cmd+Q are
       refused, and a failed registration keeps the previous shortcut.

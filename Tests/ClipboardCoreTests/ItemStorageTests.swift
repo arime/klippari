@@ -126,16 +126,6 @@ func lightened(_ item: ClipItem) -> ClipItem {
         #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
     }
 
-    @Test func deleteAllEmptiesRoot() throws {
-        let root = temporaryRoot()
-        let storage = ItemStorage(root: root)
-        try storage.save(makeItem(content(typed(TypeName.plainText, "x"))))
-        try storage.save(makeItem(content(typed(TypeName.plainText, "y"))))
-        storage.deleteAll()
-        #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
-        #expect(storage.loadAll().isEmpty)
-    }
-
     @Test func rootIsPrivate() throws {
         let root = temporaryRoot()
         _ = ItemStorage(root: root)

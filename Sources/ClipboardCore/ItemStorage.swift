@@ -124,11 +124,33 @@ public struct ItemStorage: Sendable {
         try? FileManager.default.removeItem(at: directory(for: id))
     }
 
-    public func deleteAll() {
+    /// Moves every item into `archive`, adding to what is already there;
+    /// an item whose id is there already replaces that one. Each item
+    /// moves on its own, so one that cannot be moved stays here and is
+    /// reported in `left`, and the rest are still archived.
+    public func archiveAll(to archive: ItemStorage) -> (moved: Set<UUID>, left: Set<UUID>) {
         let fm = FileManager.default
+        var moved: Set<UUID> = []
+        var left: Set<UUID> = []
         for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] {
-            try? fm.removeItem(at: root.appendingPathComponent(name))
+            guard let id = UUID(uuidString: name) else { continue }
+            let destination = archive.directory(for: id)
+            do {
+                if fm.fileExists(atPath: destination.path) {
+                    try fm.removeItem(at: destination)
+                }
+                try fm.moveItem(at: directory(for: id), to: destination)
+                moved.insert(id)
+            } catch {
+                left.insert(id)
+            }
         }
+        return (moved, left)
+    }
+
+    /// Moves one item's directory into another storage.
+    public func move(id: UUID, to other: ItemStorage) throws {
+        try FileManager.default.moveItem(at: directory(for: id), to: other.directory(for: id))
     }
 
     /// Every item, newest `lastUsedAt` first, with lightened content: only
