@@ -153,13 +153,6 @@ public struct ItemStorage: Sendable {
         try FileManager.default.moveItem(at: directory(for: id), to: other.directory(for: id))
     }
 
-    public func deleteAll() {
-        let fm = FileManager.default
-        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] {
-            try? fm.removeItem(at: root.appendingPathComponent(name))
-        }
-    }
-
     /// Every item, newest `lastUsedAt` first, with lightened content: only
     /// text and file URL bytes are read. Directories that are not complete
     /// (interrupted writes, missing data files) are removed.

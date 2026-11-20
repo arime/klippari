@@ -46,7 +46,7 @@ import ClipboardCore
         #expect(model.countLabel == "3 items")
         model.query = "an"
         #expect(model.countLabel == "1 of 3")
-        store.clear()
+        store.archiveAll(now: at(5))
         model.open()
         #expect(model.countLabel == "0 items")
         store.add(text("only"), sourceApp: nil, now: at(9))
