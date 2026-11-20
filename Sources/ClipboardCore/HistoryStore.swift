@@ -12,6 +12,19 @@ public struct ArchiveSummary: Equatable, Sendable {
     }
 }
 
+/// What a restore did.
+public struct RestoreResult: Equatable, Sendable {
+    /// How many items came back.
+    public var restored: Int
+    /// How many stayed in the archive because the history was full.
+    public var noRoom: Int
+
+    public init(restored: Int, noRoom: Int) {
+        self.restored = restored
+        self.noRoom = noRoom
+    }
+}
+
 /// The ordered history, newest first, mirrored to disk. Items in memory
 /// carry lightened content (text and file URLs only); images and other
 /// large data stay on disk until an item is pasted.
@@ -164,25 +177,36 @@ public struct ArchiveSummary: Equatable, Sendable {
         return true
     }
 
-    /// Puts the archived items back, merged with what was copied since by
-    /// when each was last used. Items already in the history are not
-    /// added twice, and the history size still applies. Only what came
-    /// back leaves the archive: an item that could not be moved stays
-    /// there, with the archive's date, to be restored later. Returns how
-    /// many items came back.
+    /// Puts back as many archived items as the history has room for,
+    /// newest first by when each was last used, merged with what was
+    /// copied since. The rest stay in the archive, so a restore never
+    /// deletes an item or pushes one out of the history. The only thing
+    /// it removes from the archive besides what came back is a copy of
+    /// something already in the history. An item that could not be
+    /// moved stays there too, with the archive's date, to be restored
+    /// later.
     @discardableResult
-    public func restoreArchive() -> Int {
+    public func restoreArchive() -> RestoreResult {
         let fm = FileManager.default
-        guard fm.fileExists(atPath: archiveRoot.path) else { return 0 }
+        guard fm.fileExists(atPath: archiveRoot.path) else { return RestoreResult(restored: 0, noRoom: 0) }
         let archivedAt = (try? fm.attributesOfItem(atPath: archiveRoot.path))?[.modificationDate]
         let archive = ItemStorage(root: archiveRoot)
-        let present = Set(items.map(\.contentHash))
-        var restored = 0
+        var seen = Set(items.map(\.contentHash))
+        var waiting: [ClipItem] = []
+        // Newest first, so a second copy of the same content is the older.
         for item in archive.loadAll() {
-            if present.contains(item.contentHash) {
+            if seen.insert(item.contentHash).inserted {
+                waiting.append(item)
+            } else {
                 archive.delete(id: item.id)
-                continue
             }
+        }
+
+        let room = max(limit - items.count, 0)
+        var restored = 0
+        var tried = 0
+        for item in waiting where restored < room {
+            tried += 1
             do {
                 try archive.move(id: item.id, to: storage)
                 items.append(item)
@@ -196,10 +220,11 @@ public struct ArchiveSummary: Equatable, Sendable {
             // Moving items out touched what is left of the archive.
             try? fm.setAttributes([.modificationDate: archivedAt], ofItemAtPath: archiveRoot.path)
         }
-        items.sort { $0.lastUsedAt > $1.lastUsedAt }
-        trim()
-        onChange?()
-        return restored
+        if restored > 0 {
+            items.sort { $0.lastUsedAt > $1.lastUsedAt }
+            onChange?()
+        }
+        return RestoreResult(restored: restored, noRoom: waiting.count - tried)
     }
 
     public func clear() {

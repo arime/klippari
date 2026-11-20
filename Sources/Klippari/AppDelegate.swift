@@ -61,13 +61,15 @@ import ClipboardCore
 
     private func expire() {
         if store.expireArchive(now: Date()) {
-            settings.archive = store.archiveSummary
+            showArchive()
         }
     }
 
     private func applySettings() {
         if store.limit != settings.historyLimit {
             store.limit = settings.historyLimit
+            // A note about the history being full no longer holds.
+            settings.restoreNote = nil
         }
         if registeredShortcut != settings.shortcut {
             hotKey.update(settings.shortcut)
@@ -144,18 +146,35 @@ import ClipboardCore
     @discardableResult
     private func archiveHistory() -> Int {
         let count = store.archiveAll(now: Date())
-        settings.archive = store.archiveSummary
+        showArchive()
         return count
     }
 
+    /// Restores what fits in the history, and says when something did
+    /// not, so a full history never makes Restore look broken.
     private func restoreArchive() {
-        store.restoreArchive()
-        settings.archive = store.archiveSummary
+        let result = store.restoreArchive()
+        showArchive(note: Self.restoreNote(result))
+    }
+
+    private static func restoreNote(_ result: RestoreResult) -> String? {
+        guard result.noRoom > 0 else { return nil }
+        if result.restored == 0 {
+            return "The history is full, so nothing was restored. Raise Keep last to make room."
+        }
+        let restored = result.restored == 1 ? "1 item" : "\(result.restored) items"
+        return "Restored \(restored). \(result.noRoom) did not fit: raise Keep last to restore them."
     }
 
     private func deleteArchive() {
         store.deleteArchive()
+        showArchive()
+    }
+
+    /// Brings the Cleared history row in Settings up to date.
+    private func showArchive(note: String? = nil) {
         settings.archive = store.archiveSummary
+        settings.restoreNote = note
     }
 
     /// A background app has no visible menu bar, but the main menu still

@@ -6,7 +6,8 @@ import SwiftUI
 /// the panel with sample items to an image and exits, so its layout can
 /// be compared with the design mock without touching real history.
 /// Adding `settings` renders the settings window's content instead, and
-/// `archive` gives it a cleared history to show.
+/// `archive` gives it a cleared history to show, and `full` adds the
+/// note a restore leaves when the history had no room for everything.
 @MainActor enum Snapshot {
     static func runIfRequested() {
         let arguments = CommandLine.arguments
@@ -34,6 +35,9 @@ import SwiftUI
         let settings = Settings(defaults: defaults)
         if arguments.contains("archive") {
             settings.archive = ArchiveSummary(count: 12, archivedAt: now.addingTimeInterval(-3600))
+            if arguments.contains("full") {
+                settings.restoreNote = "Restored 38 items. 12 did not fit: raise Keep last to restore them."
+            }
         }
         let view: AnyView
         if arguments.contains("settings") {

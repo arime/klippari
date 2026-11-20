@@ -109,6 +109,9 @@ struct Shortcut: Codable, Equatable {
     /// The cleared history, for Settings to offer restoring. Kept up
     /// to date by the app; not stored in the preferences.
     var archive: ArchiveSummary?
+    /// What the last restore could not do, such as items left behind
+    /// because the history was full. Nil once it no longer applies.
+    var restoreNote: String?
     /// Restores the cleared history.
     @ObservationIgnored var onRestoreArchive: (() -> Void)?
     /// Deletes the cleared history for good.

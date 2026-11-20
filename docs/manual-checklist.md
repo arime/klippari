@@ -30,6 +30,12 @@ Expected behaviour is defined in `specification.md`.
       since.
 - [ ] Clearing, copying something and clearing again keeps both lots:
       Restore brings back everything from both clears.
+- [ ] With Keep last lowered so the cleared history does not fit,
+      Restore brings back only the newest items that fit, nothing in
+      the history is pushed out, and Settings says how many did not
+      fit. With the history full, Restore says that nothing was
+      restored. Raising Keep last and pressing Restore again brings
+      back the rest.
 - [ ] Delete under Cleared history removes it, and the row goes away.
 - [ ] The panel looks right in light and dark mode, over light and
       dark windows, including its corners and blur.

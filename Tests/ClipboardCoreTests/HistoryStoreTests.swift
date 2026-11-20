@@ -159,7 +159,7 @@ func at(_ seconds: TimeInterval) -> Date {
         #expect(store.archiveAll(now: at(20)) == 1)
         // Both clears are there, and the date is the last clear's.
         #expect(store.archiveSummary == ArchiveSummary(count: 3, archivedAt: at(20)))
-        #expect(store.restoreArchive() == 3)
+        #expect(store.restoreArchive() == RestoreResult(restored: 3, noRoom: 0))
         #expect(store.items.map(\.content) == [text("c"), text("b"), text("a")])
     }
 
@@ -196,7 +196,7 @@ func at(_ seconds: TimeInterval) -> Date {
         store.archiveAll(now: at(10))
         store.add(text("new"), sourceApp: nil, now: at(2))
         store.add(text("b"), sourceApp: nil, now: at(12)) // copied again since
-        #expect(store.restoreArchive() == 1)
+        #expect(store.restoreArchive() == RestoreResult(restored: 1, noRoom: 0))
         #expect(store.items.map(\.content) == [text("b"), text("new"), text("a")])
         #expect(store.archiveSummary == nil)
         #expect(!FileManager.default.fileExists(atPath: store.archiveRoot.path))
@@ -206,15 +206,39 @@ func at(_ seconds: TimeInterval) -> Date {
         #expect(reopened.items.map(\.content) == [text("b"), text("new"), text("a")])
     }
 
-    @Test func restoreKeepsTheHistorySize() {
-        let store = makeStore(limit: 2)
+    @Test func restoreBringsBackOnlyWhatFitsAndLeavesTheRest() {
+        let store = makeStore(limit: 3)
         store.add(text("a"), sourceApp: nil, now: at(1))
         store.add(text("b"), sourceApp: nil, now: at(2))
+        store.add(text("c"), sourceApp: nil, now: at(3))
         store.archiveAll(now: at(10))
-        store.add(text("c"), sourceApp: nil, now: at(11))
-        store.restoreArchive()
-        #expect(store.items.map(\.content) == [text("c"), text("b")])
+        store.add(text("new"), sourceApp: nil, now: at(11))
+        // Room for two: the two used most recently come back.
+        #expect(store.restoreArchive() == RestoreResult(restored: 2, noRoom: 1))
+        #expect(store.items.map(\.content) == [text("new"), text("c"), text("b")])
+        #expect(itemsOnDisk() == 3)
+        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(10)))
+
+        // With a larger history the rest comes back, and nothing was lost.
+        store.limit = 4
+        #expect(store.restoreArchive() == RestoreResult(restored: 1, noRoom: 0))
+        #expect(store.items.map(\.content) == [text("new"), text("c"), text("b"), text("a")])
+        #expect(store.archiveSummary == nil)
+    }
+
+    @Test func restoreIntoAFullHistoryChangesNothing() {
+        let store = makeStore(limit: 2)
+        store.add(text("a"), sourceApp: nil, now: at(1))
+        store.archiveAll(now: at(10))
+        let x = store.add(text("x"), sourceApp: nil, now: at(11))
+        let y = store.add(text("y"), sourceApp: nil, now: at(12))
+        var changes = 0
+        store.onChange = { changes += 1 }
+        #expect(store.restoreArchive() == RestoreResult(restored: 0, noRoom: 1))
+        #expect(changes == 0)
+        #expect(store.items.map(\.id) == [y.id, x.id])
         #expect(itemsOnDisk() == 2)
+        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(10)))
     }
 
     // MARK: Failures while clearing and restoring
@@ -256,13 +280,13 @@ func at(_ seconds: TimeInterval) -> Date {
         let blocker = root.appendingPathComponent(stuck.id.uuidString)
         try FileManager.default.createDirectory(at: blocker, withIntermediateDirectories: true)
 
-        #expect(store.restoreArchive() == 1)
+        #expect(store.restoreArchive().restored == 1)
         #expect(store.items.map(\.content) == [text("b")])
         #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(10)))
 
         // With the way clear, the rest comes back and the archive goes.
         try FileManager.default.removeItem(at: blocker)
-        #expect(store.restoreArchive() == 1)
+        #expect(store.restoreArchive().restored == 1)
         #expect(store.items.map(\.content) == [text("b"), text("a")])
         #expect(!FileManager.default.fileExists(atPath: store.archiveRoot.path))
     }
@@ -270,7 +294,7 @@ func at(_ seconds: TimeInterval) -> Date {
     @Test func restoreWithoutAnArchiveDoesNothing() {
         let store = makeStore()
         store.add(text("a"), sourceApp: nil, now: at(1))
-        #expect(store.restoreArchive() == 0)
+        #expect(store.restoreArchive() == RestoreResult(restored: 0, noRoom: 0))
         #expect(store.items.count == 1)
     }
 }
