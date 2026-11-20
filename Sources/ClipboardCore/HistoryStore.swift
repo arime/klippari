@@ -137,10 +137,13 @@ public struct RestoreResult: Equatable, Sendable {
     /// a folder kept for one run to the saved one. Each item is saved
     /// here with its full content, read from the other store. Content
     /// already here is not added twice, and the history size applies.
+    /// An item whose content can no longer be read whole is left out:
+    /// it could not be pasted either.
     public func adopt(_ other: HistoryStore) {
         let present = Set(items.map(\.contentHash))
         for var item in other.items where !present.contains(item.contentHash) {
             let full = other.fullContent(for: item.id) ?? item.content
+            guard full.isComplete else { continue }
             item.content = full
             do {
                 try storage.save(item)
