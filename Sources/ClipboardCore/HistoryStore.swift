@@ -22,10 +22,35 @@ public struct RestoreResult: Equatable, Sendable {
     public var restored: Int
     /// How many stayed in the archive because the history was full.
     public var noRoom: Int
+    /// How many could not be moved back, and stay in the archive.
+    public var failed: Int
 
-    public init(restored: Int, noRoom: Int) {
+    public init(restored: Int, noRoom: Int, failed: Int = 0) {
         self.restored = restored
         self.noRoom = noRoom
+        self.failed = failed
+    }
+
+    /// What Settings says after the restore, so that one which left
+    /// items behind never looks as if Restore did nothing. Nil when
+    /// everything came back.
+    public var note: String? {
+        guard noRoom > 0 || failed > 0 else { return nil }
+        if restored == 0, failed == 0 {
+            return "The history is full, so nothing was restored. Raise Keep last to make room."
+        }
+        var note = restored == 0
+            ? "Nothing was restored."
+            : "Restored \(restored == 1 ? "1 item" : "\(restored) items")."
+        if noRoom > 0 {
+            note += " \(noRoom) did not fit: raise Keep last to restore them."
+        }
+        if failed > 0 {
+            note += failed == 1
+                ? " 1 could not be moved back and is still in the cleared history."
+                : " \(failed) could not be moved back and are still in the cleared history."
+        }
+        return note
     }
 }
 
@@ -222,25 +247,29 @@ public struct RestoreResult: Equatable, Sendable {
             }
         }
 
+        // An item that cannot be moved leaves its room to the next one.
         let room = max(limit - items.count, 0)
-        var restored = 0
-        var tried = 0
-        for (item, clear) in waiting where restored < room {
-            tried += 1
+        var result = RestoreResult(restored: 0, noRoom: 0, failed: 0)
+        for (item, clear) in waiting {
+            guard result.restored < room else {
+                result.noRoom += 1
+                continue
+            }
             do {
                 try clear.storage.move(id: item.id, to: storage)
                 items.append(item)
-                restored += 1
+                result.restored += 1
             } catch {
                 Self.logger.error("Could not restore item: \(error.localizedDescription, privacy: .public)")
+                result.failed += 1
             }
         }
         archive.removeEmpty()
-        if restored > 0 {
+        if result.restored > 0 {
             items.sort { $0.lastUsedAt > $1.lastUsedAt }
             onChange?()
         }
-        return RestoreResult(restored: restored, noRoom: waiting.count - tried)
+        return result
     }
 
     public func clear() {

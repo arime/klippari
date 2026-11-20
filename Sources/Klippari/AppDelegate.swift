@@ -168,19 +168,9 @@ import ClipboardCore
     }
 
     /// Restores what fits in the history, and says when something did
-    /// not, so a full history never makes Restore look broken.
+    /// not come back, so Restore never looks broken.
     private func restoreArchive() {
-        let result = store.restoreArchive()
-        showArchive(note: Self.restoreNote(result))
-    }
-
-    private static func restoreNote(_ result: RestoreResult) -> String? {
-        guard result.noRoom > 0 else { return nil }
-        if result.restored == 0 {
-            return "The history is full, so nothing was restored. Raise Keep last to make room."
-        }
-        let restored = result.restored == 1 ? "1 item" : "\(result.restored) items"
-        return "Restored \(restored). \(result.noRoom) did not fit: raise Keep last to restore them."
+        showArchive(note: store.restoreArchive().note)
     }
 
     private func deleteArchive() {
