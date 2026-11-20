@@ -85,26 +85,70 @@ public struct RestoreResult: Equatable, Sendable {
     /// Called after every mutation.
     public var onChange: (() -> Void)?
 
-    public init(storage: ItemStorage, limit: Int = 50) {
+    /// With `sealingPlainItems`, history written before encryption is
+    /// encrypted first (see `sealPlainHistory`). The app does that on
+    /// its own, off the main thread, and passes false.
+    public init(storage: ItemStorage, limit: Int = 50, sealingPlainItems: Bool = true) {
         self.storage = storage
         archiveRoot = StorageLocation.archiveRoot(forItems: storage.root)
         self.limit = limit
-        let archive = ClearedHistory(root: archiveRoot, cipher: storage.cipher)
-        // A flat cleared history takes its date from the folder's
-        // modification time, so it is sorted into a clear before sealing
-        // rewrites anything in it.
-        archive.adoptFlatLayout()
-        // History written before encryption is encrypted before it is
-        // loaded, since loading skips whatever is not sealed. A clear's
-        // date is in its folder's name, so sealing its items leaves when
-        // it expires unchanged.
-        storage.sealPlainItems()
-        for clear in archive.clears() {
-            clear.storage.removeLeftovers()
-            clear.storage.sealPlainItems()
+        if sealingPlainItems {
+            Self.sealPlainHistory(storage)
+        } else {
+            Self.tidy(storage)
         }
         self.items = storage.loadAll()
         trim()
+    }
+
+    /// Encrypts the history and the cleared history written before
+    /// encryption. Loading skips whatever is not sealed, so this comes
+    /// first. It reads and writes each such item in full, which takes a
+    /// while for a large history, so it can run off the main thread.
+    /// Returns whether nothing plain is left.
+    @discardableResult
+    nonisolated public static func sealPlainHistory(_ storage: ItemStorage) -> Bool {
+        let archive = tidy(storage)
+        // A clear's date is in its folder's name, so sealing its items
+        // leaves when it expires unchanged.
+        storage.sealPlainItems()
+        for clear in archive.clears() {
+            clear.storage.sealPlainItems()
+        }
+        return !ItemStorage.holdsPlainItems(in: [storage.root, archive.root])
+    }
+
+    /// Sorts a flat cleared history into a clear, dated by the folder's
+    /// modification time (before anything rewrites items in it), and
+    /// removes what interrupted saves left in the clears' folders.
+    @discardableResult
+    nonisolated private static func tidy(_ storage: ItemStorage) -> ClearedHistory {
+        let archive = ClearedHistory(
+            root: StorageLocation.archiveRoot(forItems: storage.root), cipher: storage.cipher
+        )
+        archive.adoptFlatLayout()
+        for clear in archive.clears() {
+            clear.storage.removeLeftovers()
+        }
+        return archive
+    }
+
+    /// Items on disk, in the history or the cleared history, that the
+    /// key cannot open (see `ItemStorage.unreadableItems`). They are
+    /// not loaded, so nothing else shows them.
+    public func unreadableItems(countingPlain: Bool) -> [URL] {
+        ItemStorage.unreadableItems(in: [storage.root, archiveRoot], cipher: storage.cipher, countingPlain: countingPlain)
+    }
+
+    /// Deletes what `unreadableItems` lists. Returns how many went.
+    @discardableResult
+    public func removeUnreadableItems(countingPlain: Bool) -> Int {
+        var removed = 0
+        for folder in unreadableItems(countingPlain: countingPlain)
+        where (try? FileManager.default.removeItem(at: folder)) != nil {
+            removed += 1
+        }
+        return removed
     }
 
     /// Records a copy. Content identical to an existing item moves that
