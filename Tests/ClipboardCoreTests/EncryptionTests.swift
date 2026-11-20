@@ -137,8 +137,9 @@ func permissions(_ url: URL) -> Int? {
         let root = temporaryRoot()
         let id = try writePlainItem(in: root, text: "keep me")
         let directory = root.appendingPathComponent(id.uuidString)
-        // A read-only item directory makes the swap fail, as a full disk would.
-        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: root.path)
+        // A read-only history folder makes the sealed copy impossible to
+        // write, as a full disk would. ItemStorage makes its folder
+        // writable, so the folder is made read-only again after it.
         let storage = ItemStorage(root: root, cipher: testCipher)
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: root.path)
         #expect(storage.sealPlainItems() == 0)
