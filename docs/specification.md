@@ -100,7 +100,9 @@ without the mouse.
 - An item is written to a temporary directory and renamed into place.
   On start, directories that are incomplete (no manifest, or a
   manifest that opens but names data that is missing or damaged) are
-  removed and the rest of the history loads. An item in the history
+  removed and the rest of the history loads. A manifest that is there
+  but cannot be read (permissions, a disk error) is kept, and counts as
+  sealed when deciding whether a new key may be made. An item in the history
   whose manifest does not decrypt with the key is never deleted: it is
   skipped, and clearing the history leaves it where it is. In the
   cleared history such an item is not counted or restored, and goes
