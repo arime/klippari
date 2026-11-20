@@ -101,6 +101,11 @@ struct SettingsView: View {
                             Button("Restore") { settings.onRestoreArchive?() }
                             Button("Delete", role: .destructive) { settings.onDeleteArchive?() }
                         }
+                        if let note = settings.restoreNote {
+                            Text(note)
+                                .font(.caption)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         Text("Deleted automatically 24 hours after clearing.")
                             .font(.caption)
                             .foregroundStyle(.secondary)

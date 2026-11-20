@@ -73,11 +73,14 @@ without the mouse.
   clearing twice loses nothing. An archived item with the same id or
   the same content as one cleared now gives way to the newer one. The
   archive's date is that of the last clear. An item that cannot be
-  moved stays in the history. Restoring moves the archived items
-  back, skipping any already in the history, orders everything by
-  last-used time and applies the history size. Only what came back
-  leaves the archive: an item that could not be moved stays there, and
-  the archive is removed once it is empty.
+  moved stays in the history. Restoring moves back as many archived
+  items as the history has room for (the history size minus the items
+  in it), newest last-used time first, and orders everything by
+  last-used time. The rest stay in the archive, so a restore never
+  deletes an item or pushes one out of the history; an archived copy
+  of something already in the history is dropped. An item that could
+  not be moved stays in the archive too, and the archive is removed
+  once it is empty.
 - The archive is deleted 24 hours after the last clear, checked at
   launch and every 15 seconds, or at once with Delete in Settings.
 - Items are ordered by last-used time, newest first.
@@ -266,8 +269,11 @@ instead.
   default.
 - **Cleared history**: the size of the cleared history and the date
   of the last clear, with Restore and Delete below and a note that it
-  is deleted 24 hours after clearing. The row is shown only while
-  there is a cleared history.
+  is deleted 24 hours after clearing. When a restore leaves items
+  behind because the history is full, a line under the buttons says
+  how many were restored and how many did not fit, or that nothing
+  was restored, and suggests raising Keep last. The row is shown only
+  while there is a cleared history.
 
 History size, shortcut, panel position and the panel options are
 stored in the app's preferences.

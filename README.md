@@ -146,8 +146,10 @@ History is kept in `~/Library/Application Support/Klippari/items`, one
 folder per item, readable only by you. Settings are in the preferences
 of `com.arime.Klippari`. Clearing the history moves it to
 `items-archive` next to it, adding to what was cleared before. Settings
-can restore or delete it, and it is deleted on its own 24 hours after
-the last clear.
+can restore or delete it. A restore brings back only as many items as
+the history size has room for, newest first, and leaves the rest to
+restore later. The cleared history is deleted on its own 24 hours
+after the last clear.
 
 ## Icon and screenshots
 
