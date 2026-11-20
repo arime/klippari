@@ -127,9 +127,10 @@ Expected behaviour is defined in `specification.md`.
       there, the menu starts with 'History isn't being saved' and the
       reason, and the panel's footer says the same on every open.
       Copies made now are gone after quitting.
-- [ ] In that state, Reset Saved History… asks first, with Cancel as
-      the default; Return and Escape both cancel. After Reset the old files are gone, the two menu
-      lines and the footer warning disappear, what was copied since
+- [ ] In that state, Reset Saved History… asks first, with no default
+      button: Escape cancels and Return does nothing. After Reset the
+      old files are gone, the two menu lines and the footer warning
+      disappear, what was copied since
       launch is still listed, and it is still there after a relaunch.
 - [ ] Deny on the keychain prompt at launch: the menu says history
       isn't being saved, and Try Again, then Always Allow, opens the
