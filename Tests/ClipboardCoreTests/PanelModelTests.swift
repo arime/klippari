@@ -3,7 +3,7 @@ import Testing
 import ClipboardCore
 
 @MainActor @Suite struct PanelModelTests {
-    let store = HistoryStore(storage: ItemStorage(root: temporaryRoot()))
+    let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
 
     /// Adds items so that the last name given ends up newest (row 1).
     func makeModel(_ names: String..., apps: [String: String] = [:]) -> PanelModel {
@@ -19,6 +19,32 @@ import ClipboardCore
         model.rows.map(\.presentation.title)
     }
 
+    @Test func anExpiredSecretLeavesTheSelectionInItsPlace() {
+        let model = makeModel("a", "b")
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(1))
+        store.add(text("c"), sourceApp: "Notes", now: at(500))
+        model.open()
+        // c, secret, b, a
+        model.moveSelection(by: 1)
+        #expect(model.selectionIsSecret)
+        store.expireSecrets(now: at(1000))
+        #expect(titles(model) == ["c", "b", "a"])
+        #expect(model.selectedItem?.content == text("b"))
+    }
+
+    @Test func notASecretShowsTheSelectedSecretInFull() {
+        let model = makeModel("a")
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(500))
+        model.open()
+        #expect(model.selectionIsSecret)
+        #expect(titles(model) == [Secrets.dots, "a"])
+        let id = model.selectedID
+        model.keepSelectedAsOrdinary()
+        #expect(!model.selectionIsSecret)
+        #expect(model.selectedID == id)
+        #expect(titles(model) == ["hunter2-but-longer", "a"])
+    }
+
     @Test func openSelectsNewest() {
         let model = makeModel("a", "b", "c")
         #expect(titles(model) == ["c", "b", "a"])
@@ -31,10 +57,15 @@ import ClipboardCore
     @Test func openResetsQuerySelectionAndNotice() {
         let model = makeModel("a", "b", "c")
         model.query = "a"
+        model.warning = "not saved"
         model.notice = "something"
+        model.noticeLink = URL(string: "https://example.com")
         model.open()
         #expect(model.query == "")
         #expect(model.notice == nil)
+        #expect(model.noticeLink == nil)
+        // A warning is about something that lasts, and stays.
+        #expect(model.warning == "not saved")
         #expect(titles(model) == ["c", "b", "a"])
         #expect(model.selectedID == model.rows[0].id)
     }
@@ -44,7 +75,7 @@ import ClipboardCore
         #expect(model.countLabel == "3 items")
         model.query = "an"
         #expect(model.countLabel == "1 of 3")
-        store.clear()
+        store.archiveAll(now: at(5))
         model.open()
         #expect(model.countLabel == "0 items")
         store.add(text("only"), sourceApp: nil, now: at(9))
@@ -59,6 +90,25 @@ import ClipboardCore
         #expect(model.selectedID == model.rows[1].id)
         model.moveSelection(by: 5)
         #expect(model.selectedID == model.rows[2].id)
+    }
+
+    @Test func visibleItemOnlyForVisibleRows() {
+        let model = makeModel("apple", "banana")
+        let banana = model.rows[0].id
+        #expect(model.visibleItem(banana)?.content == text("banana"))
+        model.query = "apple"
+        #expect(model.visibleItem(banana) == nil)
+    }
+
+    @Test func selectPicksAVisibleRowOnly() {
+        let model = makeModel("apple", "banana", "cherry")
+        model.select(model.rows[2].id)
+        #expect(model.selectedItem?.content == text("apple"))
+
+        let hidden = model.rows[1].id // banana
+        model.query = "apple"
+        model.select(hidden)
+        #expect(model.selectedItem?.content == text("apple"))
     }
 
     @Test func queryFiltersAndSelectsFirstMatch() {
@@ -158,11 +208,14 @@ import ClipboardCore
         #expect(model.selectedItem?.content == text("b"))
     }
 
-    @Test func storeChangeThatRemovesSelectionSelectsFirst() {
+    @Test func storeChangeThatRemovesSelectionSelectsTheRowInItsPlace() {
         let model = makeModel("a", "b", "c")
-        model.moveSelection(by: 2)
+        model.moveSelection(by: 1)
         store.remove(model.selectedID!)
-        #expect(model.selectedID == model.rows[0].id)
+        #expect(model.selectedItem?.content == text("a"))
+        // The last row gone: the one before it.
+        store.remove(model.selectedID!)
+        #expect(model.selectedItem?.content == text("c"))
     }
 
     @Test func unknownSourceAppIsEmpty() {

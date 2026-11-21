@@ -53,7 +53,7 @@ func richContent() -> ClipContent {
 
 @Suite struct LightStorageTests {
     @Test func loadAllKeepsOnlyTextInMemory() throws {
-        let storage = ItemStorage(root: temporaryRoot())
+        let storage = ItemStorage(root: temporaryRoot(), cipher: testCipher)
         let item = makeItem(richContent(), imageInfo: ImageInfo.inspect(richContent()))
         try storage.save(item)
         let loaded = try #require(storage.loadAll().first)
@@ -63,7 +63,7 @@ func richContent() -> ClipContent {
     }
 
     @Test func loadContentReturnsEverything() throws {
-        let storage = ItemStorage(root: temporaryRoot())
+        let storage = ItemStorage(root: temporaryRoot(), cipher: testCipher)
         let item = makeItem(richContent())
         try storage.save(item)
         #expect(storage.loadContent(id: item.id) == richContent())
@@ -71,7 +71,7 @@ func richContent() -> ClipContent {
     }
 
     @Test func saveRefusesIncompleteContent() {
-        let storage = ItemStorage(root: temporaryRoot())
+        let storage = ItemStorage(root: temporaryRoot(), cipher: testCipher)
         #expect(throws: (any Error).self) {
             try storage.save(makeItem(richContent().lightened))
         }
@@ -80,7 +80,7 @@ func richContent() -> ClipContent {
 
     @Test func updateManifestLeavesDataFilesAlone() throws {
         let root = temporaryRoot()
-        let storage = ItemStorage(root: root)
+        let storage = ItemStorage(root: root, cipher: testCipher)
         var item = makeItem(richContent())
         try storage.save(item)
         let dataFile = root.appendingPathComponent(item.id.uuidString).appendingPathComponent("e0-t2.bin")
@@ -97,19 +97,14 @@ func richContent() -> ClipContent {
         #expect(storage.loadContent(id: item.id) == richContent())
     }
 
-    @Test func loadsManifestWrittenBeforeHashesWereStored() throws {
+    @Test func sealsManifestWrittenBeforeHashesWereStored() throws {
         let root = temporaryRoot()
-        let storage = ItemStorage(root: root)
-        let item = makeItem(richContent())
-        try storage.save(item)
-        let manifestURL = root.appendingPathComponent(item.id.uuidString).appendingPathComponent("manifest.json")
-        var json = try #require(
-            JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any]
-        )
-        json.removeValue(forKey: "contentHash")
-        try JSONSerialization.data(withJSONObject: json).write(to: manifestURL)
-
-        #expect(storage.loadAll().first?.contentHash == richContent().contentHash)
+        let storage = ItemStorage(root: root, cipher: testCipher)
+        let id = try writePlainItem(in: root, text: "old", withHash: false)
+        #expect(storage.sealPlainItems() == 1)
+        let loaded = storage.loadAll()
+        #expect(loaded.map(\.id) == [id])
+        #expect(loaded.first?.contentHash == text("old").contentHash)
     }
 }
 
@@ -117,7 +112,7 @@ func richContent() -> ClipContent {
     let root = temporaryRoot()
 
     func makeStore() -> HistoryStore {
-        HistoryStore(storage: ItemStorage(root: root))
+        HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
     }
 
     @Test func itemsHoldOnlyTextInMemory() {
@@ -152,7 +147,7 @@ func richContent() -> ClipContent {
 @MainActor @Suite struct LightMonitorTests {
     @Test func pasteWritesFullContentFromDisk() {
         let pasteboard = FakePasteboard()
-        let store = HistoryStore(storage: ItemStorage(root: temporaryRoot()))
+        let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
         let monitor = ClipboardMonitor(pasteboard: pasteboard, store: store, sourceApp: { nil }, now: { at(0) })
         pasteboard.copy(richContent())
         monitor.tick()

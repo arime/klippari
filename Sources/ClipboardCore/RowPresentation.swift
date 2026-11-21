@@ -12,7 +12,8 @@ public struct RowPresentation: Equatable, Sendable {
     public var title: String
     /// Greyed suffix after the title.
     public var tag: String?
-    /// Lowercased text, file names and source app.
+    /// Lowercased text, file names and source app; for an image, also
+    /// 'image' and its format.
     public var searchText: String
 
     public init(_ item: ClipItem) {
@@ -22,8 +23,24 @@ public struct RowPresentation: Equatable, Sendable {
         var searchParts: [String] = []
 
         // A file URL wins over text: Finder puts the file name on the
-        // pasteboard as plain text alongside the URL.
-        if !files.isEmpty {
+        // pasteboard as plain text alongside the URL. It also wins over
+        // image data, since Finder adds the file's icon, unless the copy
+        // is an image that is also offered as its saved file.
+        let imageIsTheFile = item.imageInfo != nil && Self.isImageOfferedAsFile(content, files)
+        if item.isSecret {
+            // Only the masked first line shows, and only it is searched,
+            // so typing in the filter cannot confirm the hidden part.
+            // Nothing else about the secret shows either: not that it is
+            // a link, nor its number of lines, nor a file's name.
+            kind = .text
+            let firstLine = string?
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .first { !$0.isEmpty }
+            title = firstLine.map(Secrets.mask) ?? Secrets.dots
+            tag = nil
+            searchParts = [title, "secret"]
+        } else if !files.isEmpty, !imageIsTheFile {
             kind = .file
             title = files.count == 1 ? files[0].lastPathComponent : "\(files.count) files"
             tag = "file"
@@ -32,6 +49,7 @@ public struct RowPresentation: Equatable, Sendable {
             kind = .image
             title = "Image"
             tag = "\(info.width) × \(info.height) · \(info.format)"
+            searchParts = files.map(\.lastPathComponent)
         } else if let string {
             let lines = string
                 .components(separatedBy: .newlines)
@@ -56,8 +74,25 @@ public struct RowPresentation: Equatable, Sendable {
             tag = nil
         }
 
+        // An image has no text of its own, so without these words it
+        // could only be found by its source app. Other kinds get none:
+        // 'text' or 'file' would match nearly every item.
+        if kind == .image {
+            searchParts.append("image")
+            if let format = item.imageInfo?.format { searchParts.append(format) }
+        }
         if let app = item.sourceApp { searchParts.append(app) }
         searchText = searchParts.joined(separator: "\n").lowercased()
+    }
+
+    /// True for a single image file that comes with its own PNG bytes, as
+    /// screenshot helpers such as clipaste write it so that terminals can
+    /// paste a path. Finder's icon for a copied file is not PNG.
+    private static func isImageOfferedAsFile(_ content: ClipContent, _ files: [URL]) -> Bool {
+        guard files.count == 1, content.hasType(TypeName.png),
+              let type = UTType(filenameExtension: files[0].pathExtension)
+        else { return false }
+        return type.conforms(to: .image)
     }
 
     private static func isLink(_ line: String) -> Bool {
@@ -67,6 +102,14 @@ public struct RowPresentation: Equatable, Sendable {
               scheme == "http" || scheme == "https"
         else { return false }
         return url.host != nil
+    }
+
+    /// What VoiceOver reads for a secret's title: the dots as the word
+    /// 'hidden' rather than one 'bullet' each.
+    public var spokenTitle: String {
+        title.replacingOccurrences(of: Secrets.dots, with: " hidden ")
+            .split(separator: " ", omittingEmptySubsequences: true)
+            .joined(separator: " ")
     }
 
     /// Case-insensitive substring match; an empty query matches everything.
@@ -83,4 +126,11 @@ public func ageString(from date: Date, now: Date) -> String {
     if seconds < 3600 { return "\(seconds / 60) min" }
     if seconds < 86400 { return "\(seconds / 3600) h" }
     return "\(seconds / 86400) d"
+}
+
+/// Time left before a secret leaves the history, in whole minutes rounded
+/// up, so it reads '1 min' until the very end.
+public func remainingString(until date: Date, now: Date) -> String {
+    let minutes = max(1, Int((date.timeIntervalSince(now) / 60).rounded(.up)))
+    return "\(minutes) min"
 }

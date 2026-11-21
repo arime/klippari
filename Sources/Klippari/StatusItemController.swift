@@ -6,6 +6,45 @@ import AppKit
     private let settings: Settings
     private let pauseItem = NSMenuItem(title: "Pause Capture", action: #selector(togglePause), keyEquivalent: "")
 
+    private let encryptingItem = NSMenuItem(title: "Encrypting the saved history…", action: nil, keyEquivalent: "")
+    private let unsavedItem = NSMenuItem(title: "History isn't being saved", action: nil, keyEquivalent: "")
+    private let unsavedReasonItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let tryAgainItem = NSMenuItem(title: "Try Again", action: #selector(tryAgain), keyEquivalent: "")
+    private let resetSavedItem = NSMenuItem(
+        title: "Reset Saved History…", action: #selector(resetSavedHistory), keyEquivalent: ""
+    )
+    private let unsavedSeparator = NSMenuItem.separator()
+    private let unreadableItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let deleteUnreadableItem = NSMenuItem(
+        title: "Delete Unreadable Items…", action: #selector(deleteUnreadableItems), keyEquivalent: ""
+    )
+    private let unreadableSeparator = NSMenuItem.separator()
+
+    /// How many items on disk the key cannot open while the history is
+    /// saved. The menu then says so, and offers to delete them.
+    var unreadable = 0 {
+        didSet { refresh() }
+    }
+
+    /// True while the 1.0 history is being encrypted, before the history
+    /// opens. The menu then says so at its top.
+    var encrypting = false {
+        didSet { refresh() }
+    }
+
+    var onDeleteUnreadableItems: (() -> Void)?
+    /// Called for Try Again, offered while the history is not saved.
+    var onTryAgain: (() -> Void)?
+
+    /// Why the history is not being saved this run, or nil when it is.
+    /// The menu then says so at its top, in two disabled lines.
+    var unsaved: UnsavedHistory? {
+        didSet { refresh() }
+    }
+
+    /// Called for Reset Saved History…, which is offered only while the
+    /// saved history's key is missing or is another one.
+    var onResetSavedHistory: (() -> Void)?
     var onClearHistory: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onResetPanelPosition: (() -> Void)?
@@ -18,6 +57,24 @@ import AppKit
 
         let menu = NSMenu()
         menu.delegate = self
+        // None has an action, so the menu shows them disabled.
+        menu.addItem(encryptingItem)
+        menu.addItem(unsavedItem)
+        unsavedReasonItem.indentationLevel = 1
+        menu.addItem(unsavedReasonItem)
+        tryAgainItem.target = self
+        tryAgainItem.toolTip = "Open the saved history again, as a relaunch would"
+        menu.addItem(tryAgainItem)
+        resetSavedItem.target = self
+        menu.addItem(resetSavedItem)
+        menu.addItem(unsavedSeparator)
+        unreadableItem.toolTip = "Encrypted with another key, written by an older version of Klippari, "
+            + "or not written by Klippari at all. "
+            + "They stay on disk until they are deleted."
+        menu.addItem(unreadableItem)
+        deleteUnreadableItem.target = self
+        menu.addItem(deleteUnreadableItem)
+        menu.addItem(unreadableSeparator)
         pauseItem.target = self
         menu.addItem(pauseItem)
         menu.addItem(item("Clear History", #selector(clearHistory)))
@@ -56,6 +113,22 @@ import AppKit
 
     /// Dims the icon while capture is paused.
     func refresh() {
+        encryptingItem.isHidden = !encrypting
+        unsavedItem.isHidden = unsaved == nil
+        unsavedReasonItem.isHidden = unsaved == nil
+        unsavedSeparator.isHidden = unsaved == nil
+        tryAgainItem.isHidden = unsaved == nil
+        switch unsaved {
+        case .missingKey, .wrongKey: resetSavedItem.isHidden = false
+        default: resetSavedItem.isHidden = true
+        }
+        let showsUnreadable = unsaved == nil && unreadable > 0
+        unreadableItem.isHidden = !showsUnreadable
+        deleteUnreadableItem.isHidden = !showsUnreadable
+        unreadableSeparator.isHidden = !showsUnreadable
+        unreadableItem.title = unreadable == 1 ? "1 saved item can't be read" : "\(unreadable) saved items can't be read"
+        unsavedReasonItem.title = unsaved?.menuReason ?? ""
+        unsavedReasonItem.toolTip = unsaved?.detail
         statusItem.button?.appearsDisabled = settings.isPaused
         pauseItem.title = settings.isPaused ? "Resume Capture" : "Pause Capture"
     }
@@ -72,6 +145,18 @@ import AppKit
 
     @objc private func togglePause() {
         settings.isPaused.toggle()
+    }
+
+    @objc private func resetSavedHistory() {
+        onResetSavedHistory?()
+    }
+
+    @objc private func tryAgain() {
+        onTryAgain?()
+    }
+
+    @objc private func deleteUnreadableItems() {
+        onDeleteUnreadableItems?()
     }
 
     @objc private func clearHistory() {
