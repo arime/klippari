@@ -9,6 +9,12 @@ import Carbon.HIToolbox
 
     static var isTrusted: Bool { AXIsProcessTrusted() }
 
+    /// System Settings › Privacy & Security › Accessibility, where the
+    /// permission is granted.
+    static let accessibilitySettingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+    )!
+
     /// Shows the system's Accessibility prompt, once per install; after
     /// that the panel's notice is the reminder.
     static func requestTrustOnce() {

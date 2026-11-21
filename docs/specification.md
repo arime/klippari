@@ -52,9 +52,64 @@ without the mouse.
 
 ## Storage
 
-- History lives in `~/Library/Application Support/Klippari/items`,
-  readable only by the user (mode 0700), and survives restart and
-  logout.
+- History lives in `~/Library/Application Support/Klippari/items.noindex`
+  and survives restart and logout. Folders are mode 0700 and files
+  0600.
+- Every file is encrypted with AES-GCM, with a 256-bit key kept in the
+  login keychain (service `com.arime.Klippari`), and bound to its item
+  and file name. A new key is made only while neither `items.noindex`
+  nor the archive holds an encrypted item. If the key is missing while
+  one does, or the keychain refuses, the history is kept for that run
+  only, in a folder in Caches with a key that never leaves memory
+  (each launch deletes such folders whose run has ended), and
+  the saved history is left alone. While that lasts the app says so:
+  the menu bar menu starts with the disabled lines 'History isn't being
+  saved' and the reason, and the panel's footer shows the same in
+  place of the key hints. Try Again in the menu opens the saved
+  history as a launch would and moves the run's history into it; if
+  it still cannot be opened, the reason is updated.
+- When the reason is a missing key, the menu also offers Reset Saved
+  History…. After a confirmation that says the old history cannot be
+  read and will be deleted, it deletes every sealed item in
+  `items.noindex` and the archive, makes a new key and goes on saving,
+  without a restart; what is in the history then is saved under the
+  new key, while what was cleared during the run is not kept. Items
+  still in plain form need no key: they are kept and encrypted with
+  the new one.
+  If the key has come back by then, nothing is deleted and the saved
+  history opens with it.
+- A `key-check` file in the Klippari folder, sealed with the key, is
+  written once the history opens with the key and nothing plain is
+  left. At launch, a key that does not open it, or (before it exists)
+  a key that opens none of the sealed items, is the wrong key: the
+  history is not saved that run, for the same reasons, and the menu
+  offers Reset Saved History…, which deletes what the key cannot open
+  and goes on saving with it. A new key removes an old `key-check`.
+- While the history is saved, items on disk that the key cannot open
+  are counted: sealed with another key, in no known form, and, once
+  `key-check` exists, still plain (version 1.0 run again, or a file
+  put there by something else; these are not taken into the
+  history). The menu then shows 'N saved items can't be read' and
+  Delete Unreadable Items…, which deletes them after a confirmation.
+- Spotlight and backups are kept out: the folder names end in
+  `.noindex`, which Spotlight skips, and the Klippari folder is
+  excluded from backups. It also holds a `.metadata_never_index` file,
+  a further hint that Spotlight may not honour outside a volume's
+  root.
+- Version 1.0 kept the history as plain files in `items`, and builds
+  before encryption kept the cleared history in `items-archive`. On
+  launch these are renamed to their `.noindex` names and every plain
+  item is encrypted in place, in each clear's folder too. This runs off
+  the main thread before the history opens: meanwhile the menu says
+  'Encrypting the saved history…', the shortcut is not yet registered
+  and copies are not recorded (after Try Again or Reset, the run's
+  history keeps recording until it is taken over). A plain item
+  whose data cannot be read whole is removed; a manifest that is
+  neither sealed nor plain JSON is left alone; an item that cannot be
+  saved (a full disk) is left as it is and tried again on the next
+  launch. A clear
+  keeps its date, which is in its folder's name; a flat archive gets
+  its 24 hours from the move.
 - Each item has its own directory named by its identifier, containing:
   - `manifest.json`: identifier, capture time, last-used time, source
     app, image size and format if any, content hash, and for each
@@ -63,11 +118,48 @@ without the mouse.
     from indices, never from the type string.
   - `thumb.png`: for images only, at most 56 pixels on the longer side.
 - An item is written to a temporary directory and renamed into place.
-  On start, directories that are incomplete or unreadable are removed
-  and the rest of the history loads.
+  On start, directories that are incomplete (no manifest, or a
+  manifest that opens but names data that is missing or damaged) are
+  removed and the rest of the history loads. A manifest that is there
+  but cannot be read (permissions, a disk error) is kept, and counts as
+  sealed when deciding whether a new key may be made. An item in the history
+  whose manifest does not decrypt with the key is never deleted: it is
+  skipped, and clearing the history leaves it where it is. In the
+  cleared history such an item is not counted or restored, and goes
+  when its clear expires.
 - In memory, an item keeps only its plain text and file URLs. All other
   data is read from disk when the item is pasted.
 - Moving an item to the top rewrites only its manifest.
+- Clearing the history moves every item's directory into a folder of
+  its own for that clear, `items-archive.noindex/<time>/`, beside `items.noindex`. The
+  folder is named by the time of the clear in UTC, ISO 8601 basic
+  format (`20261120T060413Z`); two clears in the same second share
+  one. Earlier clears are kept, so clearing twice loses nothing. An
+  archived item with the same content as one cleared now gives way to
+  the newer one. An item kept only in memory, because saving it
+  failed, is saved into the clear's folder. An item that can be
+  neither moved nor saved stays in the history and is left out of the
+  count the notice gives, so everything it counts can be restored.
+  An archive left flat by earlier builds of this change, with item
+  folders directly in `items-archive.noindex`, becomes one clear at launch,
+  dated by the folder's modification time. Restoring moves back as many archived
+  items as the history has room for (the history size minus the items
+  in it), newest last-used time first, and orders everything by
+  last-used time. The rest stay in the archive, so a restore never
+  deletes an item or pushes one out of the history; an archived copy
+  of something already in the history is dropped. An item that could
+  not be moved stays in the archive too. A clear's folder is removed
+  once it is empty, and `items-archive.noindex` once no clear is left.
+- Each clear is deleted 24 hours after it was made. Klippari checks at
+  launch, when the Mac wakes from sleep, and when a single timer set
+  for the oldest clear's time fires (it may fire up to a minute late,
+  so macOS can group wake-ups). The timer is set again after every
+  clear, restore, delete and check, never for less than a minute
+  ahead, so a clear that cannot be deleted is tried again each minute
+  rather than at once; with nothing cleared there is no timer. Delete in Settings deletes every clear at once.
+- The archive may take at most 1 GB. When a clear takes it past that,
+  the oldest clears are deleted until it fits, but never the clear
+  just made, so it can always be restored.
 - Items are ordered by last-used time, newest first.
 
 ## The panel
@@ -82,6 +174,32 @@ without the mouse.
   spot it is left in is remembered across restarts as a position
   relative to the screen, so it reopens in the same relative place on
   whichever screen is in use. The card is always kept fully on screen.
+- With the **Position** setting on, it opens next to the text field
+  being typed in instead, read through Accessibility when the shortcut
+  is pressed: centred on the field, 12 points above it when the card
+  fits there, otherwise 12 points below it, so it never covers the
+  field, and always fully on screen. A field over 200 points tall, such
+  as an editor, counts as just the caret's line. When no text field can
+  be read (no Accessibility permission, nothing focused, or an app that
+  hides its fields), it goes next to the mouse pointer the same way.
+  The whole lookup takes at most 0.2 seconds; past that, or when a call
+  times out, the panel goes next to the pointer, so a busy app does not
+  hold it up.
+  A focused element counts as a text field by its role, or by a caret
+  with a height: with VoiceOver running, Electron apps give buttons an
+  empty caret.
+  Electron apps expose their fields only while an assistive app has
+  turned their accessibility on (VoiceOver sets
+  `AXEnhancedUserInterface`). Klippari does not ask for it
+  (`AXManualAccessibility`): the fields appear about two seconds later,
+  far past the 0.2 seconds, the request reads back as off even while it
+  is on, and while it is on the app keeps its whole accessibility tree
+  up to date, which costs it time and memory and can change how it
+  behaves. So in an Electron app the panel goes by the text field when
+  VoiceOver or another assistive app is running, and by the pointer
+  otherwise.
+  Opened above the pointer, the card grows upward if the list grows
+  while it is open. Where it is dragged to is then not remembered.
 - Each time it opens the list is scrolled so the selected row is in
   view.
 - It closes when it loses focus.
@@ -96,10 +214,11 @@ Layout, top to bottom, in a card 640 points wide with 14-point corners:
 - The list: rows 44 points high, at most 9 visible (every row
   that Cmd+1 to Cmd+9 can paste), scrolling to keep
   the selection in view.
-- A strip of key hints: Return 'Paste', Shift+Return 'Paste as plain
-  text', Cmd+1–9 'Quick paste' on the left; Cmd+Backspace 'Delete' and
-  esc 'Close' on the right. A notice replaces the hints when there is
-  something to say.
+- A strip of key hints, each kept on one line: Return 'Paste',
+  Shift+Return 'Plain text', Cmd+1–9 'Quick paste' on the left; Cmd+Backspace 'Delete',
+  followed by Shift 'all', and esc 'Close' on the right. A notice replaces the hints when there is
+  something to say, and so does the warning that the history is not
+  being saved, for as long as it is not.
 
 Each row has four lanes:
 
@@ -116,12 +235,19 @@ Row content, first match wins:
 
 | Item | Title | Tag |
 | --- | --- | --- |
+| One image file with its own PNG data | 'Image' | '1280 × 720 · PNG' |
 | One or more files | File name, or 'N files' | 'file' |
 | Image data (PNG or TIFF) | 'Image' | '1280 × 720 · PNG' |
 | Text that also has RTF or HTML | First non-empty line | 'styled' |
 | Text that is a single http(s) URL | The URL | none |
 | Other text | First non-empty line | 'N lines' when more than one non-empty line |
 | Anything else | The type's readable name | none |
+
+The first row covers screenshot helpers such as clipaste, which offer
+an image to terminals as its PNG bytes plus a file URL and path for the
+same image saved to disk. A file copied in Finder carries its icon as
+TIFF, not PNG, so it stays a file. The file name of such an image still
+matches the filter.
 
 Ages read 'now' under a minute, then 'N min', 'N h', 'N d'.
 
@@ -139,14 +265,43 @@ that matches nothing it shows 'No matches'.
 | Cmd+1 to Cmd+9 | Paste that row of the visible list, as copied. |
 | Any typing | Edit the filter. |
 | Cmd+Backspace | Remove the selected item from the history. The selection moves to the next row, or the previous one at the end. |
+| Shift+Cmd+Backspace | Clear the whole history into the archive, without asking, since it can be restored. The notice says 'Cleared N items. Restore them in Settings.' |
 | Esc | Clear a non-empty filter; otherwise close the panel without pasting. |
 
 The filter matches case-insensitively against an item's text, its file
-names and its source app name. The first match becomes selected and
-rows are renumbered.
+names and its source app name. An image, which has no text, also
+matches 'image' and its format, such as 'png'. The first match becomes
+selected and rows are renumbered.
 
 If something is copied while the panel is open, the list updates and
 the selection stays on the same item.
+
+With the **Mouse** setting on, moving the pointer over a row selects it,
+and a click pastes it as copied; Shift+click pastes it as plain text.
+Only a pointer that moves selects: a row that scrolls under a still
+pointer while moving with the keyboard, or the row under the pointer
+when the panel opens, does not take the selection. Selecting with the
+pointer never scrolls the list. With the setting off, rows ignore the
+mouse.
+
+With the **Images** setting on, whenever the selected row is an image,
+the image is shown large beside the card, so similar screenshots can
+be told apart while moving through the list with the keyboard. While
+the pointer is over another image row's thumbnail, that image is shown
+instead.
+
+- The preview never covers the card. It goes to the right of the card,
+  or to the left when that side has room for a larger preview, centred
+  on the highlighted row and following it as the selection moves or the
+  list scrolls, kept on screen. Only when neither side has room for
+  a useful preview does it go below or above the card.
+- It is at most 320 × 240 points, never enlarged past the image's own
+  size, and kept 8 points inside the screen's edges.
+- It appears at once. Previews of the image rows are made in the
+  background when the list changes and kept, up to 20; one not made yet
+  shows the stored thumbnail until it is ready.
+- It moves with the panel when the panel is dragged, takes no clicks,
+  and closes with the panel.
 
 ## Pasting
 
@@ -163,9 +318,10 @@ the selection stays on the same item.
   the top of the history.
 - Posting Cmd+V requires the Accessibility permission. Without it the
   item is still put on the clipboard, the panel stays open with the
-  notice 'Copied. Grant Accessibility in System Settings to paste
-  directly.', and the system permission prompt is shown once per
-  install.
+  notice 'Copied. Klippari needs Accessibility to paste directly.'
+  followed by the link 'Open Accessibility Settings', and the system
+  permission prompt is shown once per install. Clicking anywhere on the
+  notice opens System Settings › Privacy & Security › Accessibility.
 
 ## Menu bar
 
@@ -173,11 +329,15 @@ the selection stays on the same item.
   image, so macOS tints it for light and dark menu bars. It is dimmed
   while capture is paused.
 - Menu: Pause Capture / Resume Capture, Clear History, Reset Panel
-  Position, Settings… (Cmd+,), Quit Klippari (Cmd+Q).
+  Position, Settings… (Cmd+,), Quit Klippari (Cmd+Q). While the
+  history is not being saved, two disabled lines come first: 'History
+  isn't being saved' and why (the key is missing, the keychain did not
+  give it, or the folder could not be set up), followed by Reset Saved
+  History… when the key is missing.
 - Reset Panel Position forgets where the panel was dragged to, so it
   opens in its default place again.
-- Clear History asks for confirmation, then removes every item from
-  memory and disk.
+- Clear History asks for confirmation, then clears the history into
+  the archive.
 
 ## Settings
 
@@ -191,9 +351,24 @@ the selection stays on the same item.
 - **Start at login**: on by default. The app registers itself once, on
   first launch, and only when running from `/Applications`. The toggle
   turns it off or on.
+- **Mouse**: point at a row to select it, click to paste it. Off by
+  default.
+- **Position**: open the panel next to the text field being typed in,
+  or else the mouse pointer. Off by default.
+- **Images**: enlarge the selected image beside the panel. Off by
+  default.
+- **Cleared history**: the number of items in the cleared history and
+  the date of the clear ('cleared …', or 'last cleared …' when it
+  comes from more than one), with Restore and Delete below and the
+  note 'Each clear is deleted 24 hours after it was made.'. When a restore leaves items
+  behind because the history is full, a line under the buttons says
+  how many were restored and how many did not fit, or that nothing
+  was restored, and suggests raising Keep last. Items that could not
+  be moved back are counted on that line too, as still in the cleared
+  history. The row is shown only while there is a cleared history.
 
-History size, shortcut and panel position are stored in the app's
-preferences.
+History size, shortcut, panel position and the panel options are
+stored in the app's preferences.
 
 ## App icon
 

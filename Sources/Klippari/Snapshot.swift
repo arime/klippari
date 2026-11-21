@@ -5,7 +5,11 @@ import SwiftUI
 /// Development aid: `Klippari --snapshot <png path> [dark]` renders
 /// the panel with sample items to an image and exits, so its layout can
 /// be compared with the design mock without touching real history.
-/// Adding `settings` renders the settings window's content instead.
+/// Adding `settings` renders the settings window's content instead, and
+/// `archive` gives it a cleared history to show, and `full` adds the
+/// note a restore leaves when the history had no room for everything.
+/// `unsaved` renders the panel as it is while the history is not being
+/// saved.
 @MainActor enum Snapshot {
     static func runIfRequested() {
         let arguments = CommandLine.arguments
@@ -15,7 +19,7 @@ import SwiftUI
 
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("Klippari-snapshot-\(UUID().uuidString)")
-        let storage = ItemStorage(root: root)
+        let storage = ItemStorage(root: root, cipher: .ephemeral())
         let store = HistoryStore(storage: storage)
         let now = Date()
         for sample in samples().reversed() {
@@ -23,21 +27,37 @@ import SwiftUI
         }
         let model = PanelModel(store: store, now: { now })
         model.open()
+        if arguments.contains("unsaved") {
+            model.warning = UnsavedHistory.missingKey.panelWarning
+        }
         if let query = arguments.firstIndex(of: "--query"), query + 1 < arguments.count {
             model.query = arguments[query + 1]
         }
 
+        // Throwaway preferences, so a snapshot never shows or changes the
+        // user's settings.
+        let defaults = UserDefaults(suiteName: "Klippari-snapshot-\(UUID().uuidString)") ?? .standard
+        let settings = Settings(defaults: defaults)
+        if arguments.contains("archive") {
+            settings.archive = ArchiveSummary(
+                count: 12, archivedAt: now.addingTimeInterval(-3600), clears: arguments.contains("full") ? 3 : 1
+            )
+            if arguments.contains("full") {
+                settings.restoreNote = "Restored 38 items. 12 did not fit: raise Keep last to restore them."
+            }
+        }
         let view: AnyView
         if arguments.contains("settings") {
-            // The settings window's content, with throwaway preferences.
-            let defaults = UserDefaults(suiteName: "Klippari-snapshot-\(UUID().uuidString)") ?? .standard
             view = AnyView(
-                SettingsView(settings: Settings(defaults: defaults))
+                SettingsView(settings: settings)
                     .background(Color(nsColor: .windowBackgroundColor))
             )
         } else {
             view = AnyView(
-                PanelView(model: model, focus: PanelFocus(), storage: storage, opaqueBackground: true)
+                PanelView(
+                    model: model, focus: PanelFocus(), storage: storage, settings: settings,
+                    opaqueBackground: true
+                )
                     .background(Color(white: dark ? 0.2 : 0.8))
             )
         }
