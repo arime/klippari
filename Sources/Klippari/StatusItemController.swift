@@ -68,7 +68,8 @@ import AppKit
         resetSavedItem.target = self
         menu.addItem(resetSavedItem)
         menu.addItem(unsavedSeparator)
-        unreadableItem.toolTip = "Encrypted with another key, or not written by Klippari. "
+        unreadableItem.toolTip = "Encrypted with another key, written by an older version of Klippari, "
+            + "or not written by Klippari at all. "
             + "They stay on disk until they are deleted."
         menu.addItem(unreadableItem)
         deleteUnreadableItem.target = self

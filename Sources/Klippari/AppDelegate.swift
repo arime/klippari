@@ -120,6 +120,7 @@ import os
         }
         panel.onClearAll = { [weak self] in self?.clearFromPanel() }
         showArchive()
+        countUnreadableItems()
         monitor.start()
     }
 
@@ -312,14 +313,29 @@ import os
         return store.unreadableItems(countingPlain: KeyCheck.exists(in: StorageLocation.defaultFolder))
     }
 
+    /// Brings the menu's count of unreadable items up to date. Reading
+    /// every manifest takes a while for a large cleared history, and
+    /// items only become unreadable outside a running Klippari, so this
+    /// runs when the history opens, after Delete Unreadable Items…,
+    /// deleting the cleared history, or an expired clear, not after
+    /// every clear or restore. Rarer deletions (a clear that trims older
+    /// ones past the size limit) are not counted, so the count can be
+    /// too high but never too low; Delete Unreadable Items… counts
+    /// afresh before it asks.
+    private func countUnreadableItems() {
+        statusItem.unreadable = unreadableItems.count
+    }
+
     private func confirmDeleteUnreadableItems() {
         let count = unreadableItems.count
+        statusItem.unreadable = count
         guard count > 0 else { return }
         let alert = NSAlert()
         alert.alertStyle = .critical
         alert.messageText = "Delete \(count == 1 ? "the unreadable item" : "\(count) unreadable items")?"
         alert.informativeText = "\(count == 1 ? "This item was" : "These items were") encrypted with another "
-            + "key, or not written by Klippari, so Klippari cannot show \(count == 1 ? "it" : "them"). "
+            + "key, written by an older version of Klippari, or not written by Klippari at all, "
+            + "so Klippari cannot show \(count == 1 ? "it" : "them"). "
             + "This cannot be undone."
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
@@ -328,6 +344,7 @@ import os
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         store.removeUnreadableItems(countingPlain: KeyCheck.exists(in: StorageLocation.defaultFolder))
         showArchive()
+        countUnreadableItems()
     }
 
     /// Each clear is deleted a day after it was made. One timer waits
@@ -350,6 +367,8 @@ import os
     private func expire() {
         if store.expireArchive(now: Date()) {
             showArchive()
+            // The expired clear may have held unreadable items.
+            countUnreadableItems()
         } else {
             scheduleExpiry()
         }
@@ -449,6 +468,8 @@ import os
     private func deleteArchive() {
         store.deleteArchive()
         showArchive()
+        // Unreadable items in the cleared history went with it.
+        countUnreadableItems()
     }
 
     /// Brings the Cleared history row in Settings, and the timer that
@@ -456,7 +477,6 @@ import os
     private func showArchive(note: String? = nil) {
         settings.archive = store.archiveSummary
         settings.restoreNote = note
-        statusItem?.unreadable = unreadableItems.count
         scheduleExpiry()
     }
 
