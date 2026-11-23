@@ -22,7 +22,7 @@ copied and lets you paste any of them easily from the keyboard.</p>
 - Never records what a password manager marks as concealed, nor
   anything over 20 MB
 - Optionally keeps secrets (copies from password apps, API keys and
-  tokens, texts you choose) in memory only, masked, for 10 minutes
+  tokens) in memory only, masked, for 10 minutes
 - Pastes an item as it was copied, or as plain text
 - Keeps a cleared history for 24 hours, so a clear can be undone
 - Follows the system light or dark appearance
@@ -224,8 +224,9 @@ saved in full, though it is the more sensitive copy.
 Only new copies are checked: turning Secrets on leaves what is already
 saved as it is, and turning it off leaves the secrets in the history
 to go after their 10 minutes. A secret in a known format also deletes
-earlier copies of its text from the history and the cleared history. A copy from a password app does not: if its text is
-already saved as an ordinary item, such as a user name, it stays one.
+earlier copies of its text from the history and the cleared history.
+A copy from a password app does not: if its text is already saved as
+an ordinary item, such as a user name, it stays one.
 
 Cmd+S on a secret in the panel keeps it as an ordinary item, for as
 long as that item is in the history, even after Secrets was turned

@@ -184,10 +184,12 @@ public struct ClipItem: Identifiable, Equatable, Sendable {
     /// and leaves the history at this time. Nil for ordinary items.
     public var expiresAt: Date?
     /// Set when the user said this is not a secret (Cmd+S on a masked
-    /// row), so it is never taken for one again, across restarts too.
+    /// row), so its text is not taken for one again while the item is in
+    /// the history, across restarts too.
     public var notSecret: Bool
     /// For a secret: true when its text is the secret (a credential),
-    /// false when it is one only because it came from a password app. Kept in memory only, as secrets are.
+    /// false when it is one only because it came from a password app.
+    /// Kept in memory only, as secrets are.
     public var secretByContent: Bool
 
     public var isSecret: Bool { expiresAt != nil }
