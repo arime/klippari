@@ -119,7 +119,10 @@ without the mouse.
   concealed (`org.nspasteboard.ConcealedType`), so that other clipboard
   managers leave it out; it does not extend its time. Copying it again
   does. A copy with the same text as a secret in the history is that
-  secret again, from whatever app. A secret by its content (a
+  secret again, from whatever app; the spaces and line breaks around a
+  text do not count, so a password copied with a line break after it
+  is the same secret. A copied file is never a secret by its content,
+  nor the same as a text: its plain text is only its name. A secret by its content (a
   credential) takes every item with its text out of
   the history and off the disk, even one copied with other types
   beside the text (rich text from Notes, say), since the same password
@@ -174,7 +177,12 @@ without the mouse.
   counts. A cleared copy keeps its mark: no secret's search deletes it
   from the cleared history, and Restore brings it back marked, the
   secret with its text giving way. While a secret is selected, the
-  footer's 'Quick paste' hint gives way to 'Not a secret'.
+  footer's 'Quick paste' hint gives way to 'Not a secret'. Under a
+  filter the row stays listed and selected after Cmd+S, though in full
+  it may no longer match, until the filter changes or the selection
+  moves, so a second Cmd+S never unmasks the next secret. Moving off
+  it lands on its neighbour, or on the row above at the end of the
+  list.
 - An OpenAI-style `sk-` key must be at least 32 characters after its
   prefix and mix capitals, small letters and digits, so that URL slugs
   and CSS class names starting with `sk-` are not taken for keys.

@@ -31,6 +31,12 @@ Expected behaviour is defined in `specification.md`.
       Cmd+S shows the row in full, and it is still there after a
       restart. This works with Secrets turned off after the secret was
       copied too.
+- [ ] With two secrets and the filter 'secret', Cmd+S shows the first in
+      full and keeps it selected; Cmd+S again beeps, and the second
+      stays masked. Down arrow then moves to the second.
+- [ ] A token copied with a line break after it takes its saved copy
+      without one out of the history. A file in Finder named like a
+      token is saved as usual.
 - [ ] Cmd+S on an ordinary row beeps. Turning Secrets on or off keeps
       the Settings window's top edge in place.
 - [ ] A URL with an `sk-some-long-slug` path is not masked.

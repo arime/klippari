@@ -25,6 +25,32 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         ((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []).count
     }
 
+    @Test func aCredentialWithALineBreakAfterItIsTheSameSecret() {
+        let store = makeStore()
+        store.add(text(fakeGitHubToken + "\n"), sourceApp: "Terminal", now: at(0))
+        #expect(itemsOnDisk() == 1)
+        store.add(text(" " + fakeGitHubToken), sourceApp: "Notes", secret: .content, now: at(1))
+        #expect(store.items.map(\.isSecret) == [true])
+        #expect(itemsOnDisk() == 0)
+        // Its 'not a secret' mark covers the other spacing too.
+        store.keepAsOrdinary(store.items[0].id)
+        #expect(!store.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(2)).isSecret)
+    }
+
+    @Test func aFileIsNeverTakenForATextSecret() {
+        let store = makeStore()
+        let file = content(
+            TypedData(type: TypeName.fileURL, data: Data("file:///tmp/\(fakeGitHubToken)".utf8)),
+            TypedData(type: TypeName.plainText, data: Data(fakeGitHubToken.utf8))
+        )
+        #expect(Secrets.reason(for: file, frontmostBundleID: nil) == nil)
+        store.add(file, sourceApp: "Finder", now: at(0))
+        // A secret with the file's name as its text leaves the file alone.
+        store.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(1))
+        #expect(store.items.map(\.isSecret) == [true, false])
+        #expect(itemsOnDisk() == 1)
+    }
+
     @Test func secretsStayInMemoryOnly() {
         let store = makeStore()
         let item = store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: .content, now: at(0))
