@@ -9,8 +9,7 @@ import SwiftUI
 /// `archive` gives it a cleared history to show, and `full` adds the
 /// note a restore leaves when the history had no room for everything.
 /// `unsaved` renders the panel as it is while the history is not being
-/// saved. `secrets` and `masked` show Settings with Secrets on, and with
-/// Always mask chosen texts on too.
+/// saved. `secrets` shows Settings with Secrets on.
 @MainActor enum Snapshot {
     static func runIfRequested() {
         let arguments = CommandLine.arguments
@@ -29,9 +28,7 @@ import SwiftUI
                 now: now.addingTimeInterval(-sample.age)
             )
         }
-        // With 'masked', the panel shows Cmd+S's hint on a secret.
-        store.detectsSecrets = arguments.contains("secrets") || arguments.contains("masked")
-        store.masksChosenTexts = arguments.contains("masked")
+        store.detectsSecrets = arguments.contains("secrets")
         let model = PanelModel(store: store, now: { now })
         model.open()
         if arguments.contains("unsaved") {
@@ -53,13 +50,8 @@ import SwiftUI
                 settings.restoreNote = "Restored 38 items. 12 did not fit: raise Keep last to restore them."
             }
         }
-        // 'secrets' turns Secrets on, 'masked' also Always mask chosen
-        // texts.
-        if arguments.contains("secrets") || arguments.contains("masked") {
+        if arguments.contains("secrets") {
             settings.detectSecrets = true
-        }
-        if arguments.contains("masked") {
-            settings.maskChosenTexts = true
         }
         let view: AnyView
         if arguments.contains("settings") {

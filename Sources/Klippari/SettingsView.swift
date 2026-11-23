@@ -112,21 +112,12 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Toggle("Mask passwords and API keys", isOn: $settings.detectSecrets)
                     if settings.detectSecrets {
-                        // Each caption sits under its toggle's label.
+                        // The caption sits under the toggle's label.
                         Text("Kept in memory only, for 10 minutes.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.leading, 20)
-                        Toggle("Always mask chosen texts", isOn: $settings.maskChosenTexts)
-                            .padding(.top, 4)
-                        if settings.maskChosenTexts {
-                            Text("⌘S in the panel masks or unmasks a row.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.leading, 20)
-                        }
                     }
                 }
             }

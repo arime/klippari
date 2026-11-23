@@ -116,16 +116,6 @@ struct Shortcut: Codable, Equatable {
         }
     }
 
-    /// Nested under Secrets: Cmd+S in the panel masks a text always, or
-    /// unmasks a secret, and copies holding a masked text are secrets.
-    /// Off by default.
-    var maskChosenTexts: Bool {
-        didSet {
-            defaults.set(maskChosenTexts, forKey: "maskChosenTexts")
-            onChange?()
-        }
-    }
-
     /// The cleared history, for Settings to offer restoring. Kept up
     /// to date by the app; not stored in the preferences.
     var archive: ArchiveSummary?
@@ -149,6 +139,5 @@ struct Shortcut: Codable, Equatable {
         openAtPointer = defaults.bool(forKey: "openAtPointer")
         magnifyImages = defaults.bool(forKey: "magnifyImages")
         detectSecrets = defaults.bool(forKey: "detectSecrets")
-        maskChosenTexts = defaults.bool(forKey: "maskChosenTexts")
     }
 }

@@ -315,33 +315,6 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(itemsOnDisk() == 1)
     }
 
-    @Test func aTooShortTextIsNotMaskedAlways() {
-        let store = makeStore()
-        let item = store.add(text(" ab \n"), sourceApp: nil, now: at(0))
-        #expect(!store.maskAlways(item.id, now: at(1)))
-        #expect(store.maskedTexts.isEmpty)
-        #expect(store.items.map(\.isSecret) == [false])
-    }
-
-    @Test func anUnreadableMaskedTextsFileIsReplaced() throws {
-        _ = makeStore()
-        try Data("not sealed".utf8).write(to: MaskedTexts.url(forItems: root))
-        let store = makeStore()
-        #expect(store.maskedTexts.isEmpty)
-        let item = store.add(text("me@example.com"), sourceApp: nil, now: at(0))
-        store.maskAlways(item.id, now: at(1))
-        #expect(makeStore().maskedTexts == ["me@example.com"])
-    }
-
-    @Test func maskingFallsBackWhenTheSavedCopyIsGone() {
-        let store = makeStore()
-        let item = store.add(text("me@example.com"), sourceApp: nil, now: at(0))
-        // The item's files went missing; its text is still in memory.
-        ItemStorage(root: root, cipher: testCipher).delete(id: item.id)
-        #expect(store.maskAlways(item.id, now: at(1)))
-        #expect(store.fullContent(for: item.id) == text("me@example.com"))
-    }
-
     @Test func theMarkEndsWhenItsItemIsDeleted() {
         let store = makeStore()
         let item = store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(0))
@@ -403,38 +376,6 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(store.archiveSummary?.count == 1)
     }
 
-    @Test func maskingAlwaysBeatsAnOlderMarkInTheClearedHistory() async throws {
-        for background in [false, true] {
-            let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
-            store.scansClearedHistoryInBackground = background
-            let first = store.add(text("me@example.com"), sourceApp: nil, secret: .content, now: at(0))
-            store.keepAsOrdinary(first.id)
-            store.archiveAll(now: at(1))
-            let again = store.add(text("me@example.com"), sourceApp: nil, now: at(2))
-            #expect(store.maskAlways(again.id, now: at(3)))
-            // Restore while the search may still run brings nothing back.
-            #expect(store.restoreArchive() == RestoreResult(restored: 0, noRoom: 0), "background \(background)")
-            try await Task.sleep(for: .milliseconds(background ? 300 : 0))
-            #expect(store.archiveSummary == nil, "background \(background)")
-            store.expireSecrets(now: at(1000))
-            #expect(store.items.isEmpty)
-            #expect(store.add(text("me@example.com"), sourceApp: nil, secret: .content, now: at(1001)).isSecret)
-        }
-    }
-
-    @Test func maskingInTheBackgroundTakesTheClearedCopyOut() async throws {
-        let store = makeStore()
-        store.scansClearedHistoryInBackground = true
-        var changed = false
-        store.onSecretAdded = { if $0 { changed = true } }
-        store.add(text("me@example.com"), sourceApp: nil, now: at(0))
-        store.archiveAll(now: at(1))
-        let item = store.add(richCopy("me@example.com"), sourceApp: "Notes", now: at(2))
-        #expect(store.maskAlways(item.id, now: at(3)))
-        try await waitForSearches { changed }
-        #expect(store.archiveSummary == nil)
-    }
-
     @Test func takingOverASecretSearchesTheClearedHistoryInTheBackground() async throws {
         let store = makeStore()
         store.scansClearedHistoryInBackground = true
@@ -460,58 +401,6 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         store.adopt(unsaved)
         #expect(store.items.map(\.isSecret) == [true])
         #expect(itemsOnDisk() == 0)
-    }
-
-    @Test func maskingATextAlwaysMakesItsItemASecret() {
-        let store = makeStore()
-        store.detectsSecrets = true
-        let email = store.add(text("me@example.com"), sourceApp: "Mail", now: at(0))
-        store.add(richCopy("me@example.com"), sourceApp: "Notes", now: at(1))
-        store.add(text("other"), sourceApp: nil, now: at(2))
-        #expect(itemsOnDisk() == 3)
-        #expect(store.maskAlways(email.id, now: at(3)))
-        #expect(store.maskedTexts == ["me@example.com"])
-        #expect(store.items.filter(\.isSecret).map(\.id) == [email.id])
-        #expect(store.items.count == 2)
-        #expect(itemsOnDisk() == 1)
-        #expect(store.fullContent(for: email.id) == text("me@example.com"))
-        store.expireSecrets(now: at(1000))
-        #expect(store.items.map(\.content) == [text("other")])
-    }
-
-    @Test func maskedTextsAreSealedAndKeptAcrossRestarts() throws {
-        let store = makeStore()
-        let item = store.add(text("Me@Example.com"), sourceApp: "Mail", now: at(0))
-        store.maskAlways(item.id, now: at(1))
-        let file = MaskedTexts.url(forItems: root)
-        let raw = try Data(contentsOf: file)
-        #expect(ItemCipher.isSealed(raw))
-        #expect(raw.range(of: Data("Example".utf8)) == nil)
-        #expect(makeStore().maskedTexts == ["Me@Example.com"])
-        store.keepAsOrdinary(item.id)
-        #expect(makeStore().maskedTexts.isEmpty)
-        #expect(!FileManager.default.fileExists(atPath: file.path))
-    }
-
-    @Test func notASecretStopsMaskingTheTextsItHolds() {
-        let store = makeStore()
-        let item = store.add(text("me@example.com"), sourceApp: "Mail", now: at(0))
-        store.maskAlways(item.id, now: at(1))
-        store.keepAsOrdinary(item.id)
-        #expect(store.maskedTexts.isEmpty)
-        #expect(store.items.map(\.isSecret) == [false])
-        #expect(itemsOnDisk() == 1)
-    }
-
-    @Test func takingOverMergesTheMaskedTexts() {
-        let store = makeStore()
-        let unsaved = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
-        let item = unsaved.add(text("me@example.com"), sourceApp: "Mail", now: at(0))
-        unsaved.maskAlways(item.id, now: at(1))
-        store.adopt(unsaved)
-        #expect(store.maskedTexts == ["me@example.com"])
-        #expect(store.items.map(\.isSecret) == [true])
-        #expect(makeStore().maskedTexts == ["me@example.com"])
     }
 
     @Test func clearingDropsSecretsAndArchivesTheRest() {
@@ -830,11 +719,6 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         }
     }
 
-    @Test func aCopyHoldingAMaskedTextIsASecret() {
-        let texts = ["me@example.com", "  "]
-        #expect(Secrets.reason(for: text("Write to ME@example.com\nThanks"), frontmostBundleID: nil, maskedTexts: texts) == .content)
-        #expect(Secrets.reason(for: text("Write to someone"), frontmostBundleID: nil, maskedTexts: texts) == nil)
-    }
 }
 
 @Suite struct SecretMaskTests {
@@ -1107,24 +991,6 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         pasteboard.copy(text("plain"))
         monitor.tick()
         #expect(store.items.map(\.isSecret) == [false, true])
-    }
-
-    @Test func aNewCopyHoldingAMaskedTextIsASecret() {
-        let front = FrontmostApp("Mail", "com.apple.mail")
-        let monitor = makeMonitor(front)
-        pasteboard.copy(text("me@example.com"))
-        monitor.tick()
-        store.maskAlways(store.items[0].id, now: at(0))
-        store.expireSecrets(now: at(1000))
-        // With Always mask chosen texts off, the list is not applied.
-        pasteboard.copy(text("Reply to me@example.com today"))
-        monitor.tick()
-        #expect(store.items.map(\.isSecret) == [false])
-        store.masksChosenTexts = true
-        pasteboard.copy(text("Reply to me@example.com tomorrow"))
-        monitor.tick()
-        #expect(store.items.map(\.isSecret) == [true, false])
-        #expect(store.items[0].secretByContent)
     }
 
     @Test func aSwitchWhilePausedRecordsNothing() {

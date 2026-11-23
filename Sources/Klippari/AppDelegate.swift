@@ -129,7 +129,6 @@ import os
             if clearedHistoryChanged { self?.refreshArchive() }
         }
         store.detectsSecrets = settings.detectSecrets
-        store.masksChosenTexts = settings.maskChosenTexts
         store.scansClearedHistoryInBackground = true
         if let previous { store.adopt(previous) }
         store.expireArchive(now: Date())
@@ -203,8 +202,6 @@ import os
             // A key check left by an earlier key goes with it.
             let key = try ItemCipher.key(stored: KeychainKey.load(), sealedHistoryIn: roots) {
                 KeyCheck.remove(in: folder)
-                // Sealed with a key that is gone, so unreadable either way.
-                MaskedTexts.remove(forItems: items)
                 return try KeychainKey.create()
             }
             cipher = ItemCipher(key: key)
@@ -288,15 +285,12 @@ import os
                 try ItemStorage.removeSealedItems(root)
             }
             KeyCheck.remove(in: folder)
-            MaskedTexts.remove(forItems: items)
         case .wrongKey:
             guard let stored = try KeychainKey.load() else { break }
             for item in ItemStorage.unreadableItems(in: roots, cipher: ItemCipher(key: stored), countingPlain: false) {
                 try FileManager.default.removeItem(at: item)
             }
             KeyCheck.remove(in: folder)
-            // Sealed with the other key, so the keychain's cannot read it.
-            MaskedTexts.remove(forItems: items)
         default:
             break
         }
@@ -461,7 +455,6 @@ import os
         // Turning it off leaves the secrets already in the history to
         // expire as usual, so a click never writes a password to disk.
         store.detectsSecrets = settings.detectSecrets
-        store.masksChosenTexts = settings.maskChosenTexts
         if monitor.isPaused != settings.isPaused {
             monitor.isPaused = settings.isPaused
         }

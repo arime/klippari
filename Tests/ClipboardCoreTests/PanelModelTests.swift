@@ -37,50 +37,27 @@ import ClipboardCore
         store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .content, now: at(500))
         model.open()
         #expect(model.selectionIsSecret)
-        // With Secrets off (turned off after the secret came) and Always
-        // mask chosen texts off, Cmd+S still undoes a wrong guess.
-        #expect(!store.detectsSecrets && !store.masksChosenTexts)
-        #expect(model.selectionCanBeUnmasked)
+        // With Secrets off, as after turning it off once the secret came,
+        // Cmd+S still undoes a wrong guess.
+        #expect(!store.detectsSecrets)
         #expect(titles(model) == [Secrets.dots, "a"])
         let id = model.selectedID
-        #expect(model.toggleSelectedSecret())
+        #expect(model.keepSelectedAsOrdinary())
         #expect(!model.selectionIsSecret)
         #expect(model.selectedID == id)
         #expect(titles(model) == ["hunter2-but-longer", "a"])
+        // On an ordinary row it does nothing, and the panel beeps.
+        #expect(!model.keepSelectedAsOrdinary())
+        #expect(titles(model) == ["hunter2-but-longer", "a"])
     }
 
-    @Test func cmdSUnmasksWithSecretsOnAlone() {
+    @Test func cmdSUnmasksWithSecretsOn() {
         let model = makeModel("a")
         store.detectsSecrets = true
         store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .sourceApp, now: at(500))
         model.open()
-        #expect(model.selectionCanBeUnmasked)
-        #expect(!model.selectionCanBeMasked)
-        #expect(model.toggleSelectedSecret())
+        #expect(model.keepSelectedAsOrdinary())
         #expect(titles(model) == ["hunter2-but-longer", "a"])
-        // An ordinary row cannot be masked without the nested setting.
-        #expect(!model.toggleSelectedSecret())
-        #expect(titles(model) == ["hunter2-but-longer", "a"])
-    }
-
-    @Test func cmdSMasksAnOrdinaryRowOnlyWithSecretsOn() {
-        let model = makeModel("a", "me@example.com")
-        model.open()
-        #expect(!model.selectionCanBeMasked)
-        #expect(!model.toggleSelectedSecret())
-        store.detectsSecrets = true
-        #expect(!model.selectionCanBeMasked)
-        store.masksChosenTexts = true
-        #expect(model.selectionCanBeMasked)
-        #expect(model.toggleSelectedSecret())
-        #expect(model.selectionIsSecret)
-        #expect(model.notice != nil)
-        #expect(titles(model) == [Secrets.dots, "a"])
-        // Cmd+S again: not a secret after all, and the notice goes.
-        #expect(model.toggleSelectedSecret())
-        #expect(model.notice == nil)
-        #expect(titles(model) == ["me@example.com", "a"])
-        #expect(store.maskedTexts.isEmpty)
     }
 
     @Test func openSelectsNewest() {

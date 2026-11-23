@@ -29,14 +29,10 @@ Expected behaviour is defined in `specification.md`.
       with six `export …=ghp_…` lines is saved in clear.
 - [ ] With a secret selected the footer shows Cmd+S 'Not a secret';
       Cmd+S shows the row in full, and it is still there after a
-      restart. This works with Always mask chosen texts off, and with
-      Secrets turned off after the secret was copied.
-- [ ] With Secrets on and Always mask chosen texts off, Cmd+S on an
-      ordinary row beeps. Turning either setting on or off keeps the
-      Settings window's top edge in place.
-- [ ] With Always mask chosen texts on, Cmd+S on an ordinary row (an
-      email address) masks it. A new copy of a text containing the
-      address is masked. Cmd+S on that copy stops masking the address.
+      restart. This works with Secrets turned off after the secret was
+      copied too.
+- [ ] Cmd+S on an ordinary row beeps. Turning Secrets on or off keeps
+      the Settings window's top edge in place.
 - [ ] A URL with an `sk-some-long-slug` path is not masked.
 - [ ] A secret pasted from the panel is not recorded by another
       clipboard manager that honours nspasteboard.org (Maccy, Clipy).
@@ -164,8 +160,6 @@ Expected behaviour is defined in `specification.md`.
       there, the menu starts with 'History isn't being saved' and the
       reason, and the panel's footer says the same on every open.
       Copies made now are gone after quitting.
-- [ ] With texts masked always, Reset Saved History… (or a missing key
-      that makes a new one) also deletes `items-masked-texts`.
 - [ ] In that state, Reset Saved History… asks first, with no default
       button: Escape cancels and Return does nothing. After Reset the
       old files are gone, the two menu lines and the footer warning

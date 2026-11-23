@@ -4,9 +4,8 @@ import Foundation
 /// in memory only, for `HistoryStore.secretLifetime`, and shows masked.
 ///
 /// Only while the Secrets setting is on, and for new copies only: a copy
-/// is a secret when it comes from a password app, when it is mostly a
-/// credential in a well-known format, or when it contains a text the
-/// user asked to have masked always. There is deliberately no entropy
+/// is a secret when it comes from a password app, or when it is mostly a
+/// credential in a well-known format. There is deliberately no entropy
 /// guess: it would flag ordinary hashes and UUIDs.
 public enum Secrets {
     /// Pasteboard type in which apps following the nspasteboard.org
@@ -130,9 +129,8 @@ public enum Secrets {
 
     /// Why a copy is taken for a secret.
     public enum Reason: Equatable, Sendable {
-        /// Its text is the secret: a credential in a known format, or a
-        /// text the user asked to have masked always. Earlier copies of
-        /// the same text go too.
+        /// Its text is the secret: a credential in a known format. Earlier
+        /// copies of the same text go too.
         case content
         /// Only that it came from a password app. Earlier copies of the
         /// same text, which were saved as ordinary items, are left alone.
@@ -143,16 +141,10 @@ public enum Secrets {
     /// `frontmostBundleID` is the app that was in front when the copy was
     /// made; the copy's own source marker wins over it when present.
     /// `passwordAppWasFrontmost` counts as coming from a password app.
-    /// `maskedTexts` are texts the user asked to have masked always: a
-    /// copy whose text contains one, ignoring case, is a secret.
     public static func reason(
-        for content: ClipContent, frontmostBundleID: String?,
-        passwordAppWasFrontmost: Bool = false, maskedTexts: [String] = []
+        for content: ClipContent, frontmostBundleID: String?, passwordAppWasFrontmost: Bool = false
     ) -> Reason? {
-        if let string = content.plainString,
-           isMostlyCredential(string) || containsMaskedText(string, maskedTexts) {
-            return .content
-        }
+        if let string = content.plainString, isMostlyCredential(string) { return .content }
         let declared = content.data(for: sourceType).flatMap { String(data: $0, encoding: .utf8) }
         if passwordAppWasFrontmost || isPasswordApp(declared ?? frontmostBundleID) { return .sourceApp }
         return nil
@@ -309,15 +301,6 @@ public enum Secrets {
         // UTF-16 units on both sides.
         return line.count <= longestCredentialLine
             || Double(covered.count) >= credentialShareOfLongLine * Double(whole.length)
-    }
-
-    /// Whether `string` contains one of `texts`, ignoring case. Blank
-    /// entries never match.
-    public static func containsMaskedText(_ string: String, _ texts: [String]) -> Bool {
-        texts.contains { text in
-            let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return !text.isEmpty && string.range(of: text, options: .caseInsensitive) != nil
-        }
     }
 
     /// One line as a secret's row shows it. The first credential in a

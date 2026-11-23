@@ -60,8 +60,7 @@ without the mouse.
   every copy is saved as it is.
 - A copy is a secret when it comes from a password app (Keychain
   Access, Passwords, Bitwarden, 1Password, KeePassXC, by bundle
-  identifier), when it contains a text masked always (see Cmd+S below),
-  ignoring case, or when it is mostly a credential in a well-known
+  identifier), or when it is mostly a credential in a well-known
   format. PEM blocks are set aside first: a copy holding a whole
   private key (BEGIN to END, even collapsed onto one line) and besides
   its PEM blocks (a certificate chain, say) only what the rule below
@@ -118,7 +117,7 @@ without the mouse.
   managers leave it out; it does not extend its time. Copying it again
   does. A copy with the same text as a secret in the history is that
   secret again, from whatever app. A secret by its content (a
-  credential or a masked text) takes every item with its text out of
+  credential) takes every item with its text out of
   the history and off the disk, even one copied with other types
   beside the text (rich text from Notes, say), since the same password
   from two apps rarely comes as the same bytes. A secret only by its
@@ -140,9 +139,7 @@ without the mouse.
   quitting finishes the search first. Only an exit that skips that (a
   crash, Force Quit, `kill`, power loss) during the search can leave a
   copy there, for Restore to bring back after a relaunch. Cmd+S 'not a
-  secret' during the search stops it from deleting anything. Masking a
-  text always deletes its cleared copies even if they were marked as
-  no secret: that is the user's later word. A repeat copy of a secret by
+  secret' during the search stops it from deleting anything. A repeat copy of a secret by
   content already in the history does not search it again. Restoring never brings back an item whose text is a secret by
   content in the history: its archived copy is deleted instead. An
   archived copy of a secret only by its source app is restored, and
@@ -164,37 +161,17 @@ without the mouse.
   the source app and the time left.
 - The filter matches only what a secret's row shows, and the word
   'secret'. The image preview never shows a secret.
-- Cmd+S on a selected secret works whatever the settings, so a wrong
-  guess can always be undone, even after Secrets was turned off. On an
-  ordinary item it works only while Secrets and the nested **Always
-  mask chosen texts** setting are on; otherwise it beeps, and masked
-  texts are not applied to new copies (the list is kept).
-- Cmd+S on a selected secret keeps it as an ordinary item: it is saved
+- Cmd+S on a selected secret keeps it as an ordinary item, whatever
+  the settings, so a wrong guess can always be undone, even after
+  Secrets was turned off. On an ordinary item it beeps. The item is saved
   and shown in full, marked as no secret, and copies of the same text
   are not taken for secrets again while that item is in the history,
   across restarts too. The mark is kept in the item, so once the item
   leaves the history (cleared, trimmed or deleted) it no longer
   counts. A cleared copy keeps its mark: no secret's search deletes it
   from the cleared history, and Restore brings it back marked, the
-  secret with its text giving way. Texts masked always that
-  it contains are no longer masked. While a secret is selected, the
+  secret with its text giving way. While a secret is selected, the
   footer's 'Quick paste' hint gives way to 'Not a secret'.
-- Cmd+S on a selected ordinary item with text masks
-  that text always: the whole text, trimmed, joins the masked texts,
-  and the item becomes a secret by content, taken off the disk and out
-  of the cleared history, gone 10 minutes later. The panel's notice
-  says so: 'Masked, with every copy that holds it. ⌘S unmasks it.'
-  Other saved items that merely contain the text are left as they
-  are. A text shorter than 4 characters is not masked ('Too short to
-  mask always.'), since it would make nearly every copy a secret; an
-  item whose full content cannot be read says 'This item could not be
-  masked.'. Cmd+S 'not a secret' clears the notice.
-- The masked texts are kept in `items-masked-texts` beside the history,
-  sealed with the history's key, never in the preferences; Reset Saved
-  History deletes it with the items the lost key sealed. Nothing
-  in the app lists them: Cmd+S on a secret holding one is the way to
-  stop masking it. Taking over this run's history (Try Again, Reset)
-  merges this run's masked texts into the saved ones.
 - An OpenAI-style `sk-` key must be at least 32 characters after its
   prefix and mix capitals, small letters and digits, so that URL slugs
   and CSS class names starting with `sk-` are not taken for keys.
@@ -514,9 +491,7 @@ instead.
   default.
 - **Secrets**: 'Mask passwords and API keys'. Off by default (see
   Secrets). While on, a caption says 'Kept in memory only, for 10
-  minutes.', and a nested toggle 'Always mask chosen texts' shows, off
-  by default. While that is on, a caption says '⌘S in the panel masks
-  or unmasks a row.'. Label and control columns have fixed widths that
+  minutes.'. Label and control columns have fixed widths that
   scale with the text, so rows coming and going never move the others
   sideways; the window keeps its top edge in place and only grows
   taller.
