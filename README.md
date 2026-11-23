@@ -55,7 +55,7 @@ Requires macOS 15 or later, on Apple silicon or Intel.
 | Typing                     | Filter by text, file name or source app; `image` or `png` lists images |
 | Cmd+Backspace              | Remove the selected item from the history |
 | Shift+Cmd+Backspace        | Clear the history (restorable in Settings) |
-| Cmd+S                      | Keep a secret as an ordinary item; with Always mask chosen texts on, mask an ordinary item's text always |
+| Cmd+S                      | Keep a secret as an ordinary item         |
 | Esc                        | Clear the filter, then close              |
 
 The panel shows up to nine rows and scrolls beyond that. Drag it by
@@ -210,32 +210,26 @@ and never writes them to disk, which helps while streaming, recording
 the screen or working in public. Off, every copy is saved as it is.
 
 A new copy counts as a secret when it comes from a password app, even
-if you switch apps straight after copying, when it is mostly an API key
-or token in a well-known format (a few lines that are each mostly a
-key, such as `export GH_TOKEN=…`, a database URL with its password, a
-bare access token or an AWS key ID with its named secret key, comments
-aside, or a private key, with its certificates if any, even one cut
-short at the end), or when it contains a text you chose to mask always.
-It is shown masked and leaves the history after 10 minutes. A longer
-text that merely holds a token, such as a docker-compose file or a log,
-is saved like any other copy. So is a copy of more than five such
-lines: a `.env` file with six tokens is saved in full, though it is the
-more sensitive copy.
+if you switch apps straight after copying, or when it is mostly an API
+key or token in a well-known format (a few lines that are each mostly
+a key, such as `export GH_TOKEN=…`, a database URL with its password,
+a bare access token or an AWS key ID with its named secret key,
+comments aside, or a private key, with its certificates if any, even
+one cut short at the end). It is shown masked and leaves the history
+after 10 minutes. A longer text that merely holds a token, such as a
+docker-compose file or a log, is saved like any other copy. So is a
+copy of more than five such lines: a `.env` file with six tokens is
+saved in full, though it is the more sensitive copy.
 
 Only new copies are checked: turning Secrets on leaves what is already
 saved as it is, and turning it off leaves the secrets in the history
-to go after their 10 minutes. A secret in a known format, or a masked
-text, also deletes earlier copies of its text from the history and the
-cleared history. A copy from a password app does not: if its text is
+to go after their 10 minutes. A secret in a known format also deletes
+earlier copies of its text from the history and the cleared history. A copy from a password app does not: if its text is
 already saved as an ordinary item, such as a user name, it stays one.
 
 Cmd+S on a secret in the panel keeps it as an ordinary item, for as
 long as that item is in the history, even after Secrets was turned
-off. Under Secrets, **Always mask chosen texts** (off by default) lets
-Cmd+S on an ordinary item mask its text always: new copies containing
-it, ignoring case, are secrets. Cmd+S on such a secret stops masking
-the text again. The texts are kept encrypted like the history, and
-nothing lists them.
+off.
 
 This is a best guess, not a guarantee: a password copied from a
 browser extension or in Terminal, or a token in a format Klippari does

@@ -186,9 +186,8 @@ public struct ClipItem: Identifiable, Equatable, Sendable {
     /// Set when the user said this is not a secret (Cmd+S on a masked
     /// row), so it is never taken for one again, across restarts too.
     public var notSecret: Bool
-    /// For a secret: true when its text is the secret (a credential, or
-    /// a text masked always), false when it is one only because it came
-    /// from a password app. Kept in memory only, as secrets are.
+    /// For a secret: true when its text is the secret (a credential),
+    /// false when it is one only because it came from a password app. Kept in memory only, as secrets are.
     public var secretByContent: Bool
 
     public var isSecret: Bool { expiresAt != nil }

@@ -99,8 +99,7 @@ public struct SourceApp: Equatable, Sendable {
         // Only with the Secrets setting on; off, every copy is saved.
         let reason = !store.detectsSecrets ? nil : Secrets.reason(
             for: content, frontmostBundleID: source.bundleID,
-            passwordAppWasFrontmost: passwordAppWasFrontmost,
-            maskedTexts: store.masksChosenTexts ? store.maskedTexts : []
+            passwordAppWasFrontmost: passwordAppWasFrontmost
         )
         store.add(content, sourceApp: source.name, secret: reason, now: now())
     }
