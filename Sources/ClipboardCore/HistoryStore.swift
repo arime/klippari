@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import os
 
@@ -501,14 +500,17 @@ public struct RestoreResult: Equatable, Sendable {
         return deleted
     }
 
-    /// What makes two copies the same secret: a hash of their text when
-    /// they have any, else their exact content. The history keeps every
-    /// item's text in memory, so this works for saved and archived items
-    /// alike.
+    /// What makes two copies the same secret: their text's fingerprint
+    /// (`Secrets.textDigest`, so the spaces and line breaks around it do
+    /// not count) when they have any, else their exact content. A copied
+    /// file goes by its content: its text is only its name. The history
+    /// keeps every item's text in memory, so this works for saved and
+    /// archived items alike.
     nonisolated static func secretKey(_ content: ClipContent, hash: String) -> String {
-        guard let string = content.plainString, !string.isEmpty else { return "content:" + hash }
-        let digest = SHA256.hash(data: Data(string.utf8))
-        return "text:" + digest.map { String(format: "%02x", $0) }.joined()
+        guard content.fileURLs.isEmpty, let digest = content.plainString.flatMap(Secrets.textDigest) else {
+            return "content:" + hash
+        }
+        return "text:" + digest
     }
 
     nonisolated static func secretKey(_ item: ClipItem) -> String {

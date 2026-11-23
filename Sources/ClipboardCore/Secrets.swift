@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Recognises copies that are probably secrets, which the history keeps
@@ -147,7 +148,11 @@ public enum Secrets {
     public static func reason(
         for content: ClipContent, frontmostBundleID: String?, passwordAppWasFrontmost: Bool = false
     ) -> Reason? {
-        if let string = content.plainString, isMostlyCredential(string) { return .content }
+        // A copied file's plain text is its name, which is not what the
+        // copy holds.
+        if content.fileURLs.isEmpty, let string = content.plainString, isMostlyCredential(string) {
+            return .content
+        }
         let declared = content.data(for: sourceType).flatMap { String(data: $0, encoding: .utf8) }
         if passwordAppWasFrontmost || isPasswordApp(declared ?? frontmostBundleID) { return .sourceApp }
         return nil
@@ -326,6 +331,15 @@ public enum Secrets {
         // UTF-16 units on both sides.
         return line.count <= longestCredentialLine
             || Double(covered.count) >= credentialShareOfLongLine * Double(whole.length)
+    }
+
+    /// A fingerprint of a text: the SHA-256 of it without the spaces and
+    /// line breaks around it, in hex. Nil for a blank text. Two copies
+    /// with the same fingerprint are the same text, case and all.
+    public static func textDigest(_ string: String) -> String? {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return SHA256.hash(data: Data(trimmed.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
     /// One line as a secret's row shows it. The first credential in a
