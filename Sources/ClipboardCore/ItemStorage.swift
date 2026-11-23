@@ -45,9 +45,12 @@ public struct ItemStorage: Sendable {
     private static let thumbnailName = "thumb.png"
     private static let temporaryPrefix = ".tmp-"
 
-    public init(root: URL, cipher: ItemCipher) {
+    /// With `preparing` false the folder is neither made nor changed, for
+    /// reading one that may be deleted meanwhile.
+    public init(root: URL, cipher: ItemCipher, preparing: Bool = true) {
         self.root = root
         self.cipher = cipher
+        guard preparing else { return }
         let fm = FileManager.default
         try? fm.createDirectory(
             at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
@@ -269,7 +272,11 @@ public struct ItemStorage: Sendable {
     /// nothing tells a damaged item from a healthy one. Items still in
     /// plain form, which `sealPlainItems` could not encrypt yet, are also
     /// skipped and kept, for it to retry.
-    public func loadAll() -> [ClipItem] {
+    ///
+    /// With `tidying` false nothing is deleted, so it is safe beside a
+    /// save or a clear under way, as when the cleared history is
+    /// searched off the main thread.
+    public func loadAll(tidying: Bool = true) -> [ClipItem] {
         let fm = FileManager.default
         var items: [ClipItem] = []
         for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] {
@@ -279,7 +286,7 @@ public struct ItemStorage: Sendable {
             guard fm.isRealDirectory(url) else { continue }
             guard let id = UUID(uuidString: name) else {
                 // Not an item: what an interrupted save left.
-                try? fm.removeItem(at: url)
+                if tidying { try? fm.removeItem(at: url) }
                 continue
             }
             let raw: Data
@@ -289,11 +296,11 @@ public struct ItemStorage: Sendable {
                 // An item that never got its manifest goes. One whose
                 // manifest is there but cannot be read now (permissions,
                 // a disk error) may be whole, and stays.
-                if Self.isMissing(error) { try? fm.removeItem(at: url) }
+                if tidying, Self.isMissing(error) { try? fm.removeItem(at: url) }
                 continue
             }
             guard !raw.isEmpty else {
-                try? fm.removeItem(at: url)
+                if tidying { try? fm.removeItem(at: url) }
                 continue
             }
             guard ItemCipher.isSealed(raw),
@@ -304,7 +311,7 @@ public struct ItemStorage: Sendable {
                 items.append(item)
             } else {
                 // The manifest is ours, so what is wrong is the item.
-                try? fm.removeItem(at: url)
+                if tidying { try? fm.removeItem(at: url) }
             }
         }
         return items.sorted { $0.lastUsedAt > $1.lastUsedAt }

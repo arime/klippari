@@ -10,16 +10,29 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Copying text, an image and a file each adds a row, with no
       prompt from macOS about clipboard access.
 - [ ] A password copied from the password manager does not appear.
-- [ ] A password copied in Keychain Access or Passwords appears as
-      dots only, with none of its characters, and a lock badge, is not in the storage folder, and is gone
-      after 10 minutes.
+- [ ] With Secrets off (the default), a password copied in Passwords
+      and an API key copied in Terminal are saved and shown like any
+      copy. Turning Secrets on does not mask them.
+- [ ] With Secrets on, a password copied in Keychain Access or
+      Passwords appears as dots only, with none of its characters, and a
+      lock badge, is not in the storage folder, and is gone after 10
+      minutes. Turning Secrets off leaves it masked until it goes.
+- [ ] With Secrets on, copying in Passwords the user name already in
+      the history from Mail leaves the Mail row as it is, in clear.
 - [ ] A password copied in Passwords followed at once by Cmd+Tab to
       the browser still appears as dots only, credited to Passwords.
 - [ ] A copied API key (`sk-ant-…`, `ghp_…`) appears masked as prefix,
       dots and its last four characters; two keys can be told apart.
+      A docker-compose file with a database URL in it is saved in clear.
 - [ ] With a secret selected the footer shows Cmd+S 'Not a secret';
       Cmd+S shows the row in full, and it is still there after a
       restart.
+- [ ] With Secrets on and Always mask chosen texts off, Cmd+S beeps.
+      Turning either on or off keeps the Settings window's top edge in
+      place.
+- [ ] With Always mask chosen texts on, Cmd+S on an ordinary row (an
+      email address) masks it. A new copy of a text containing the
+      address is masked. Cmd+S on that copy stops masking the address.
 - [ ] A URL with an `sk-some-long-slug` path is not masked.
 - [ ] A secret pasted from the panel is not recorded by another
       clipboard manager that honours nspasteboard.org (Maccy, Clipy).
@@ -66,11 +79,11 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Starting a build of this version over a cleared history left by
       an earlier build keeps it: Settings shows it with the date it
       had, and Restore brings it back.
-- [ ] Copying a password as ordinary text, clearing, then copying it in
-      Passwords takes it out of Cleared history (the count
-      drops at once); once the secret has gone after 10 minutes, Restore
-      does not bring the password back. The same with the password
-      copied first from a Notes note, as rich text.
+- [ ] With Secrets on, copying an API key as ordinary text (Secrets
+      off), clearing, then copying it again takes it out of Cleared
+      history (the count drops within a moment); once the secret has gone after
+      10 minutes, Restore does not bring the key back. The same with the
+      key copied first from a Notes note, as rich text.
 - [ ] The panel looks right in light and dark mode, over light and
       dark windows, including its corners and blur.
 - [ ] An image row shows a thumbnail.
@@ -147,6 +160,8 @@ Expected behaviour is defined in `specification.md`.
       there, the menu starts with 'History isn't being saved' and the
       reason, and the panel's footer says the same on every open.
       Copies made now are gone after quitting.
+- [ ] With texts masked always, Reset Saved History… (or a missing key
+      that makes a new one) also deletes `items-masked-texts`.
 - [ ] In that state, Reset Saved History… asks first, with no default
       button: Escape cancels and Return does nothing. After Reset the
       old files are gone, the two menu lines and the footer warning

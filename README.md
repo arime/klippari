@@ -21,8 +21,8 @@ copied and lets you paste any of them easily from the keyboard.</p>
   disk
 - Never records what a password manager marks as concealed, nor
   anything over 20 MB
-- Keeps other secrets (copies from password apps, API keys and tokens)
-  in memory only, masked, for 10 minutes
+- Optionally keeps secrets (copies from password apps, API keys and
+  tokens, texts you choose) in memory only, masked, for 10 minutes
 - Pastes an item as it was copied, or as plain text
 - Keeps a cleared history for 24 hours, so a clear can be undone
 - Follows the system light or dark appearance
@@ -55,7 +55,7 @@ Requires macOS 15 or later, on Apple silicon or Intel.
 | Typing                     | Filter by text, file name or source app; `image` or `png` lists images |
 | Cmd+Backspace              | Remove the selected item from the history |
 | Shift+Cmd+Backspace        | Clear the history (restorable in Settings) |
-| Cmd+S                      | Keep a secret as an ordinary item, saved  |
+| Cmd+S                      | With Always mask chosen texts on: keep a secret as an ordinary item, or mask an ordinary item's text always |
 | Esc                        | Clear the filter, then close              |
 
 The panel shows up to nine rows and scrolls beyond that. Drag it by
@@ -86,7 +86,8 @@ The menu bar icon has:
   at a row to select it, click to paste, Shift+click to paste as plain
   text), **Position** (open next to
   the text field being typed in, or else the pointer) and **Images**
-  (enlarge the selected image beside the panel). After a clear,
+  (enlarge the selected image beside the panel), and **Secrets**, also
+  off by default (see below). After a clear,
   **Cleared history** offers Restore and Delete. The app's version is
   at the bottom.
 - **Quit Klippari**.
@@ -204,14 +205,33 @@ rest to restore later. Each clear is deleted on its own 24 hours after
 it was made, and the oldest go sooner if the cleared history passes
 1 GB.
 
-A copy taken for a secret is never written to disk. A copy counts as
-one when it comes from a password app, even if you switch apps
-straight after copying, or contains an API key or token in a
-well-known format; it is shown masked and leaves the history after
-10 minutes. Earlier copies of its text, in the history or the cleared
-history, are deleted, so Restore cannot bring them back. If a copy is
-wrongly taken for a secret, Cmd+S keeps it as an ordinary item, for
-good. A token saved by an earlier version becomes a secret at launch.
+With **Secrets** on in Settings, Klippari masks secrets in the panel
+and never writes them to disk, which helps while streaming, recording
+the screen or working in public. Off, every copy is saved as it is.
+
+A new copy counts as a secret when it comes from a password app, even
+if you switch apps straight after copying, when it is mostly an API key
+or token in a well-known format (a few lines that are each mostly a
+key, such as `export GH_TOKEN=…`, a database URL with its password, a
+bare access token or an AWS key ID with its named secret key, comments
+aside, or a whole private key, with its certificates if any), or when it contains a text you chose to mask always. It
+is shown masked and leaves the history after 10 minutes. A longer text
+that merely holds a token, such as a docker-compose file or a log, is
+saved like any other copy.
+
+Only new copies are checked: turning Secrets on leaves what is already
+saved as it is, and turning it off leaves the secrets in the history
+to go after their 10 minutes. A secret in a known format, or a masked
+text, also deletes earlier copies of its text from the history and the
+cleared history. A copy from a password app does not: if its text is
+already saved as an ordinary item, such as a user name, it stays one.
+
+Under Secrets, **Always mask chosen texts** (off by default) turns on
+Cmd+S in the panel. Cmd+S on a secret keeps it as an ordinary item,
+for as long as that item is in the history. Cmd+S on an ordinary item
+masks its text always: new copies containing it, ignoring case, are
+secrets. Cmd+S on such a secret stops masking the text again. The
+texts are kept encrypted like the history, and nothing lists them.
 
 This is a best guess, not a guarantee: a password copied from a
 browser extension or in Terminal, or a token in a format Klippari does

@@ -22,8 +22,9 @@ struct ClearedHistory {
         dateSeparator: .omitted, dateTimeSeparator: .standard, timeSeparator: .omitted, timeZone: .gmt
     )
 
-    /// Every clear, oldest first.
-    func clears() -> [Clear] {
+    /// Every clear, oldest first. With `preparing` false, their folders
+    /// are left exactly as they are (see `ItemStorage.init`).
+    func clears(preparing: Bool = true) -> [Clear] {
         let fm = FileManager.default
         var clears: [Clear] = []
         for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] {
@@ -32,7 +33,7 @@ struct ClearedHistory {
             // A symbolic link is never taken for a clear, so expiry and
             // restore never reach outside the cleared history.
             guard fm.isRealDirectory(url) else { continue }
-            clears.append(Clear(date: date, storage: ItemStorage(root: url, cipher: cipher)))
+            clears.append(Clear(date: date, storage: ItemStorage(root: url, cipher: cipher, preparing: preparing)))
         }
         return clears.sorted { $0.date < $1.date }
     }
@@ -45,9 +46,11 @@ struct ClearedHistory {
 
     /// Every cleared item with the clear it is in, most recently used
     /// first.
-    func items() -> [(item: ClipItem, clear: Clear)] {
-        clears()
-            .flatMap { clear in clear.storage.loadAll().map { (item: $0, clear: clear) } }
+    /// With `tidying` false, nothing is deleted on the way (see
+    /// `ItemStorage.loadAll(tidying:)`).
+    func items(tidying: Bool = true) -> [(item: ClipItem, clear: Clear)] {
+        clears(preparing: tidying)
+            .flatMap { clear in clear.storage.loadAll(tidying: tidying).map { (item: $0, clear: clear) } }
             .sorted { $0.item.lastUsedAt > $1.item.lastUsedAt }
     }
 

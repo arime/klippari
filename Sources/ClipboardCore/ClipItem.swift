@@ -186,6 +186,10 @@ public struct ClipItem: Identifiable, Equatable, Sendable {
     /// Set when the user said this is not a secret (Cmd+S on a masked
     /// row), so it is never taken for one again, across restarts too.
     public var notSecret: Bool
+    /// For a secret: true when its text is the secret (a credential, or
+    /// a text masked always), false when it is one only because it came
+    /// from a password app. Kept in memory only, as secrets are.
+    public var secretByContent: Bool
 
     public var isSecret: Bool { expiresAt != nil }
 
@@ -194,7 +198,7 @@ public struct ClipItem: Identifiable, Equatable, Sendable {
     public init(
         id: UUID, capturedAt: Date, lastUsedAt: Date, sourceApp: String?,
         content: ClipContent, imageInfo: ImageInfo?, contentHash: String? = nil, expiresAt: Date? = nil,
-        notSecret: Bool = false
+        notSecret: Bool = false, secretByContent: Bool = false
     ) {
         self.id = id
         self.capturedAt = capturedAt
@@ -205,5 +209,6 @@ public struct ClipItem: Identifiable, Equatable, Sendable {
         self.contentHash = contentHash ?? content.contentHash
         self.expiresAt = expiresAt
         self.notSecret = notSecret
+        self.secretByContent = secretByContent
     }
 }

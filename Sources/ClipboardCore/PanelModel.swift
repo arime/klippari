@@ -68,11 +68,49 @@ import Observation
         rows.first { $0.id == selectedID }?.expiresIn != nil
     }
 
-    /// Keeps the selected secret as an ordinary item: it is saved, shown
-    /// in full and stays selected.
-    public func keepSelectedAsOrdinary() {
-        guard let selectedID else { return }
-        store.keepAsOrdinary(selectedID)
+    /// Whether Cmd+S can keep the selected secret as an ordinary item:
+    /// only while Secrets and Always mask chosen texts are on.
+    public var selectionCanBeUnmasked: Bool {
+        store.secretShortcutEnabled && selectionIsSecret
+    }
+
+    /// Whether Cmd+S can mask the selected row always: an ordinary item
+    /// with text, while Secrets and Always mask chosen texts are on.
+    public var selectionCanBeMasked: Bool {
+        guard store.secretShortcutEnabled, !selectionIsSecret, let item = selectedItem else { return false }
+        return !(item.content.plainString ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Cmd+S, while Secrets and Always mask chosen texts are on: keeps
+    /// the selected secret as an ordinary item, which is saved, shown in
+    /// full and stays selected; or masks the selected ordinary item's
+    /// text always. Returns false when it does neither.
+    @discardableResult
+    public func toggleSelectedSecret() -> Bool {
+        guard let selectedID, store.secretShortcutEnabled else { return false }
+        if selectionIsSecret {
+            store.keepAsOrdinary(selectedID)
+            // A notice from masking it no longer holds.
+            notice = nil
+            noticeLink = nil
+            return true
+        }
+        guard selectionCanBeMasked, let item = selectedItem else { return false }
+        let text = (item.content.plainString ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        // Each notice replaces whatever was there, link and all.
+        noticeLink = nil
+        guard text.count >= MaskedTexts.shortestText else {
+            notice = "Too short to mask always."
+            return false
+        }
+        guard store.maskAlways(selectedID, now: now()) else {
+            notice = "This item could not be masked."
+            return false
+        }
+        // Masking takes the row off the disk and out of the history in
+        // 10 minutes, so one stray Cmd+S must not go unnoticed.
+        notice = "Masked, with every copy that holds it. ⌘S unmasks it."
+        return true
     }
 
     public var selectedItem: ClipItem? {

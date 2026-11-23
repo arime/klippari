@@ -262,7 +262,7 @@ private final class HistoryPanel: NSPanel {
             onClearAll?()
             return true
         case kVK_ANSI_S where flags == [.command]:
-            model.keepSelectedAsOrdinary()
+            if !model.toggleSelectedSecret() { NSSound.beep() }
             return true
         default:
             break

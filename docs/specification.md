@@ -52,16 +52,43 @@ without the mouse.
 
 ## Secrets
 
+- Only with the **Secrets** setting on, which is off by default, and
+  for new copies only: nothing saved is taken for a secret afterwards,
+  at launch, on Restore or when the setting is turned on. Turning it
+  off leaves secrets already in the history to expire as usual, so a
+  click in Settings never writes a password to disk. With it off,
+  every copy is saved as it is.
 - A copy is a secret when it comes from a password app (Keychain
   Access, Passwords, Bitwarden, 1Password, KeePassXC, by bundle
-  identifier), or when its text contains a credential in a well-known
-  format: GitHub tokens (`ghp_` and the other `gh*_`, `github_pat_`),
+  identifier), when it contains a text masked always (see Cmd+S below),
+  ignoring case, or when it is mostly a credential in a well-known
+  format. PEM blocks are set aside first: a copy holding a whole
+  private key (BEGIN to END, even collapsed onto one line) and besides
+  its PEM blocks (a certificate chain, say) only what the rule below
+  accepts, is a secret. Then blank lines, and comment lines (`#`, `//`,
+  `;`) and section headers (`[default]`) that hold no credential
+  themselves, are set aside: a commented-out token still counts. What is left
+  must be at most 5 lines that each hold a credential and are either at
+  most 256 characters long or at least 80% credential, with at least
+  one such line unless a private key was set aside: `export
+  GH_TOKEN=…`, a database URL with its password, a `curl` line with a
+  `Bearer` header, a bare 1000-character JWT, an AWS access key ID with
+  its named secret key and session token (a `~/.aws/credentials`
+  profile with only those lines), a token under a `# prod` comment or
+  commented out. A bare AWS secret access key has no format of its
+  own, so it counts only where it is named (`aws_secret_access_key =
+  …`, `aws_session_token = …`); a profile with other settings beside
+  them, such as `region`, is a longer text. A private key's BEGIN line
+  alone is no credential. A longer text that merely holds a credential (a
+  docker-compose file, a log, documentation) is saved like any other
+  copy. The formats are GitHub tokens (`ghp_` and the other `gh*_`, `github_pat_`),
   OpenAI and Anthropic keys (`sk-`, `sk-ant-`), Stripe keys
   (`sk_live_`, `rk_test_` and the like), GitLab tokens (`glpat-`),
   Google API keys (`AIza`), npm and Hugging Face tokens (`npm_`,
   `hf_`), SendGrid keys (`SG.`), age secret keys, AWS access key IDs
-  (`AKIA`, `ASIA`) and a secret access key where it is named
-  (`aws_secret_access_key = …`), Slack tokens (`xox*-`, `xapp-`),
+  (`AKIA`, `ASIA`) and a secret access key and session token where
+  they are named (`aws_secret_access_key = …`, `aws_session_token =
+  …`), Slack tokens (`xox*-`, `xapp-`),
   JWTs, `Bearer` tokens, a password in a URL (`https://user:…@host`),
   and private keys (`-----BEGIN … PRIVATE KEY-----`, PGP's
   `… PRIVATE KEY BLOCK-----`). There is no entropy guess. The
@@ -81,18 +108,37 @@ without the mouse.
   concealed (`org.nspasteboard.ConcealedType`), so that other clipboard
   managers leave it out; it does not extend its time. Copying it again
   does. A copy with the same text as a secret in the history is that
-  secret again, from whatever app. Adding a secret takes every item
-  with its text out of the history and off the disk, even one copied
-  with other types beside the text (rich text from Notes, say), since
-  the same password from two apps rarely comes as the same bytes.
+  secret again, from whatever app. A secret by its content (a
+  credential or a masked text) takes every item with its text out of
+  the history and off the disk, even one copied with other types
+  beside the text (rich text from Notes, say), since the same password
+  from two apps rarely comes as the same bytes. A secret only by its
+  source app leaves earlier copies alone, and a copy from a password
+  app whose text the history already holds as an ordinary item is not
+  a secret at all: that text was saved and shown in clear before, and
+  is likely a user name.
   Secrets do not count toward the history size, so copying one never
   pushes a saved item out, and Restore's room leaves them out too.
 - Clearing the history drops secrets; they are never archived. A copy
-  of a secret's text already in the cleared history, from when it was
-  copied as an ordinary item, is deleted when the secret is added, and
-  each clear keeps its date. Restoring never brings back an item whose
-  text is a secret in the history: its archived copy is deleted
-  instead.
+  of a secret by content's text already in the cleared history, from
+  when it was copied as an ordinary item, is deleted when the secret is
+  added, and each clear keeps its date. The cleared history is
+  searched for those copies off the main thread, reading only: what
+  it finds is deleted on the main thread, so a clear or a save under
+  way meanwhile is never touched. Settings' count catches up when the
+  search is done. Until then Restore deletes the archived copies of
+  that text itself, even if the secret has left the history, and
+  quitting finishes the search first. Only an exit that skips that (a
+  crash, Force Quit, `kill`, power loss) during the search can leave a
+  copy there, for Restore to bring back after a relaunch. Cmd+S 'not a
+  secret' during the search stops it from deleting anything. Masking a
+  text always deletes its cleared copies even if they were marked as
+  no secret: that is the user's later word. A repeat copy of a secret by
+  content already in the history does not search it again. Restoring never brings back an item whose text is a secret by
+  content in the history: its archived copy is deleted instead. An
+  archived copy of a secret only by its source app is restored, and
+  the secret gives way to it. Restored items are never taken for
+  secrets.
 - Its row is masked. The first credential on the line keeps its prefix
   and, when long enough, its last four characters (`sk-ant-••••••Q4fZ`),
   so two of the same kind can be told apart; a password in a URL shows
@@ -109,16 +155,36 @@ without the mouse.
   the source app and the time left.
 - The filter matches only what a secret's row shows, and the word
   'secret'. The image preview never shows a secret.
+- Cmd+S works only while Secrets and the nested **Always mask chosen
+  texts** setting are on; otherwise it beeps, and masked texts are not
+  applied to new copies (the list is kept).
 - Cmd+S on a selected secret keeps it as an ordinary item: it is saved
   and shown in full, marked as no secret, and copies of the same text
-  are never taken for secrets again, after a restart too.
-- A saved item whose text holds a credential in a known format and is
-  not marked as no secret, saved by an earlier build or before its
-  format was known, becomes a secret at launch: it is taken off the
-  disk and leaves the history 10 minutes later. Restore brings back
-  such an item from the cleared history the same way, as a secret
-  that takes no room. While a secret is selected, the
+  are not taken for secrets again while that item is in the history,
+  across restarts too. The mark is kept in the item, so once the item
+  leaves the history (cleared, trimmed or deleted) it no longer
+  counts. A cleared copy keeps its mark: no secret's search deletes it
+  from the cleared history, and Restore brings it back marked, the
+  secret with its text giving way. Texts masked always that
+  it contains are no longer masked. While Cmd+S works and a secret is
+  selected, the
   footer's 'Quick paste' hint gives way to 'Not a secret'.
+- Cmd+S on a selected ordinary item with text masks
+  that text always: the whole text, trimmed, joins the masked texts,
+  and the item becomes a secret by content, taken off the disk and out
+  of the cleared history, gone 10 minutes later. The panel's notice
+  says so: 'Masked, with every copy that holds it. ⌘S unmasks it.'
+  Other saved items that merely contain the text are left as they
+  are. A text shorter than 4 characters is not masked ('Too short to
+  mask always.'), since it would make nearly every copy a secret; an
+  item whose full content cannot be read says 'This item could not be
+  masked.'. Cmd+S 'not a secret' clears the notice.
+- The masked texts are kept in `items-masked-texts` beside the history,
+  sealed with the history's key, never in the preferences; Reset Saved
+  History deletes it with the items the lost key sealed. Nothing
+  in the app lists them: Cmd+S on a secret holding one is the way to
+  stop masking it. Taking over this run's history (Try Again, Reset)
+  merges this run's masked texts into the saved ones.
 - An OpenAI-style `sk-` key must be at least 32 characters after its
   prefix and mix capitals, small letters and digits, so that URL slugs
   and CSS class names starting with `sk-` are not taken for keys.
@@ -436,6 +502,14 @@ instead.
   or else the mouse pointer. Off by default.
 - **Images**: enlarge the selected image beside the panel. Off by
   default.
+- **Secrets**: 'Mask passwords and API keys'. Off by default (see
+  Secrets). While on, a caption says 'Kept in memory only, for 10
+  minutes.', and a nested toggle 'Always mask chosen texts' shows, off
+  by default. While that is on, a caption says '⌘S in the panel masks
+  or unmasks a row.'. Label and control columns have fixed widths that
+  scale with the text, so rows coming and going never move the others
+  sideways; the window keeps its top edge in place and only grows
+  taller.
 - **Cleared history**: the number of items in the cleared history and
   the date of the clear ('cleared …', or 'last cleared …' when it
   comes from more than one), with Restore and Delete below and the
@@ -448,8 +522,9 @@ instead.
 - **Version**: a grey line at the bottom, 'Klippari 1.1.0', with the
   version from the app's `Info.plist`.
 
-History size, shortcut, panel position and the panel options are
-stored in the app's preferences.
+History size, shortcut, panel position and the panel options,
+Secrets among them, are stored in the app's preferences; the masked
+texts are not.
 
 ## App icon
 

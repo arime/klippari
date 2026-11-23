@@ -16,10 +16,10 @@ public struct SourceApp: Equatable, Sendable {
 ///
 /// A copy is credited to the app that was in front when it was made, not
 /// when the poll saw it: `appDidActivate` polls once more before the
-/// switch counts. And while a password app has been in front at any
-/// moment since the last timed poll, a new copy is a secret whoever it
-/// is credited to, since a masked row costs little and a password shown
-/// in clear cannot be taken back.
+/// switch counts. With the Secrets setting on, while a password app has
+/// been in front at any moment since the last timed poll, a new copy is
+/// a secret whoever it is credited to, since a masked row costs little
+/// and a password shown in clear cannot be taken back.
 @MainActor public final class ClipboardMonitor {
     private let pasteboard: PasteboardClient
     private let store: HistoryStore
@@ -96,8 +96,13 @@ public struct SourceApp: Equatable, Sendable {
         guard count != lastSeenCount else { return }
         lastSeenCount = count
         guard !isPaused, let content = CaptureFilter.accept(pasteboard.read()) else { return }
-        let secret = passwordAppWasFrontmost || Secrets.isSecret(content, frontmostBundleID: source.bundleID)
-        store.add(content, sourceApp: source.name, secret: secret, now: now())
+        // Only with the Secrets setting on; off, every copy is saved.
+        let reason = !store.detectsSecrets ? nil : Secrets.reason(
+            for: content, frontmostBundleID: source.bundleID,
+            passwordAppWasFrontmost: passwordAppWasFrontmost,
+            maskedTexts: store.masksChosenTexts ? store.maskedTexts : []
+        )
+        store.add(content, sourceApp: source.name, secret: reason, now: now())
     }
 
     /// Puts a history item back on the clipboard without recording that

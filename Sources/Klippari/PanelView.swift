@@ -258,7 +258,7 @@ struct PanelView: View {
                 KeyHint(keys: "⇧ ↩", label: "Plain text")
                 // On a secret, the way out of a wrong guess matters more
                 // than quick paste, and the footer has room for one.
-                if model.selectionIsSecret {
+                if model.selectionCanBeUnmasked {
                     KeyHint(keys: "⌘ S", label: "Not a secret")
                 } else {
                     KeyHint(keys: "⌘ 1–9", label: "Quick paste")

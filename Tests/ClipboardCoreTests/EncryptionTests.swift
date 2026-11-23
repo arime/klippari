@@ -314,7 +314,7 @@ func permissions(_ url: URL) -> Int? {
         let png = content(TypedData(type: TypeName.png, data: makePNG(width: 80, height: 40)))
         unsaved.add(text("first"), sourceApp: "Notes", now: at(1))
         let image = unsaved.add(png, sourceApp: "Preview", now: at(2))
-        let secret = unsaved.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(3))
+        let secret = unsaved.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(3))
 
         let root = temporaryRoot()
         let saved = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
