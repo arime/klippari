@@ -24,12 +24,16 @@ Expected behaviour is defined in `specification.md`.
 - [ ] A copied API key (`sk-ant-…`, `ghp_…`) appears masked as prefix,
       dots and its last four characters; two keys can be told apart.
       A docker-compose file with a database URL in it is saved in clear.
+- [ ] With Secrets on, a private key selected in a text editor from its
+      BEGIN line to partway through, then copied, is masked. A `.env`
+      with six `export …=ghp_…` lines is saved in clear.
 - [ ] With a secret selected the footer shows Cmd+S 'Not a secret';
       Cmd+S shows the row in full, and it is still there after a
-      restart.
-- [ ] With Secrets on and Always mask chosen texts off, Cmd+S beeps.
-      Turning either on or off keeps the Settings window's top edge in
-      place.
+      restart. This works with Always mask chosen texts off, and with
+      Secrets turned off after the secret was copied.
+- [ ] With Secrets on and Always mask chosen texts off, Cmd+S on an
+      ordinary row beeps. Turning either setting on or off keeps the
+      Settings window's top edge in place.
 - [ ] With Always mask chosen texts on, Cmd+S on an ordinary row (an
       email address) masks it. A new copy of a text containing the
       address is masked. Cmd+S on that copy stops masking the address.
