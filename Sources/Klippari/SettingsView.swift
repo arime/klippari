@@ -40,13 +40,17 @@ struct SettingsView: View {
             }
         }
         .padding(20)
-        .frame(width: 420)
         .onAppear { startsAtLogin = LoginItem.isEnabled }
     }
 
     private var form: some View {
-        Form {
-            LabeledContent("Keep last") {
+        // Fixed columns rather than a Form: a Form sizes its columns to
+        // the widest row present, so rows that come and go (under
+        // Secrets, Cleared history) moved everything sideways. Texts are
+        // written to fit the control column, and wrap if they must; the
+        // window only grows taller.
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsRow("Keep last") {
                 HStack(spacing: 6) {
                     TextField("", value: limit, format: .number)
                         .labelsHidden()
@@ -58,7 +62,7 @@ struct SettingsView: View {
                 }
             }
 
-            LabeledContent("Shortcut") {
+            SettingsRow("Shortcut") {
                 VStack(alignment: .leading, spacing: 4) {
                     ShortcutRecorder(shortcut: $settings.shortcut, rejected: $shortcutRejected)
                         .frame(width: 130, height: 24)
@@ -76,7 +80,7 @@ struct SettingsView: View {
                 }
             }
 
-            LabeledContent("Start at login") {
+            SettingsRow("Start at login") {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle("", isOn: Binding(
                         get: { startsAtLogin },
@@ -89,25 +93,48 @@ struct SettingsView: View {
                 }
             }
 
-            LabeledContent("Mouse") {
+            SettingsRow("Mouse") {
                 Toggle("Point to select, click to paste", isOn: $settings.mouseOnRows)
             }
             // The rows fall into three groups (essentials, panel options,
             // cleared history); a little extra space sets them apart.
             .padding(.top, 10)
 
-            LabeledContent("Position") {
+            SettingsRow("Position") {
                 Toggle("Open at context (cursor fallback)", isOn: $settings.openAtPointer)
             }
 
-            LabeledContent("Images") {
+            SettingsRow("Images") {
                 Toggle("Enlarge the selected image", isOn: $settings.magnifyImages)
+            }
+
+            SettingsRow("Secrets") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Mask passwords and API keys", isOn: $settings.detectSecrets)
+                    if settings.detectSecrets {
+                        // Each caption sits under its toggle's label.
+                        Text("Kept in memory only, for 10 minutes.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.leading, 20)
+                        Toggle("Always mask chosen texts", isOn: $settings.maskChosenTexts)
+                            .padding(.top, 4)
+                        if settings.maskChosenTexts {
+                            Text("⌘S in the panel masks or unmasks a row.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.leading, 20)
+                        }
+                    }
+                }
             }
 
             // Only there when something was cleared, so Settings stays
             // short in everyday use.
             if let archive = settings.archive {
-                LabeledContent("Cleared history") {
+                SettingsRow("Cleared history") {
                     VStack(alignment: .leading, spacing: 6) {
                         // The summary gets a line of its own: beside the
                         // buttons it wrapped onto two. No year: nothing
@@ -115,7 +142,7 @@ struct SettingsView: View {
                         Text("\(archive.count == 1 ? "1 item" : "\(archive.count) items"), "
                             + (archive.clears == 1 ? "cleared " : "last cleared ")
                             + archive.archivedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
-                            .fixedSize()
+                            .fixedSize(horizontal: false, vertical: true)
                         HStack(spacing: 8) {
                             Button("Restore") { settings.onRestoreArchive?() }
                             Button("Delete", role: .destructive) { settings.onDeleteArchive?() }
@@ -128,6 +155,7 @@ struct SettingsView: View {
                         Text("Each clear is deleted 24 hours after it was made.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(.top, 10)
@@ -143,6 +171,39 @@ struct SettingsView: View {
             loginError = "Could not change the login item: \(error.localizedDescription)"
         }
         startsAtLogin = LoginItem.isEnabled
+    }
+}
+
+/// One row of Settings: the label right-aligned in a column of its own,
+/// the controls left-aligned in the next, both of fixed width, lined up
+/// on their first text baselines.
+///
+/// The widths scale with the text size, should the text be scaled, and
+/// text in either column wraps rather than overflowing, so larger text
+/// makes the window taller, never wider than its columns.
+private struct SettingsRow<Content: View>: View {
+    @ScaledMetric(relativeTo: .body) private var labelWidth: CGFloat = 110
+    @ScaledMetric(relativeTo: .body) private var controlWidth: CGFloat = 250
+
+    let label: String
+    let content: Content
+
+    init(_ label: String, @ViewBuilder content: () -> Content) {
+        self.label = label
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(label)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: labelWidth, alignment: .trailing)
+            content
+                .frame(width: controlWidth, alignment: .leading)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(label)
     }
 }
 
@@ -263,6 +324,31 @@ struct ShortcutRecorder: NSViewRepresentable {
     }
 }
 
+/// A window that keeps its top edge where it is when its content grows
+/// or shrinks, as when Settings shows or hides the rows under Secrets.
+/// AppKit keeps the bottom edge, which made the window jump.
+private final class TopAnchoredWindow: NSWindow {
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        super.setFrame(anchored(frameRect), display: flag)
+    }
+
+    override func setFrame(_ frameRect: NSRect, display displayFlag: Bool, animate animateFlag: Bool) {
+        super.setFrame(anchored(frameRect), display: displayFlag, animate: animateFlag)
+    }
+
+    private func anchored(_ rect: NSRect) -> NSRect {
+        guard isVisible, rect.size != frame.size else { return rect }
+        var rect = rect
+        rect.origin = NSPoint(x: frame.minX, y: frame.maxY - rect.height)
+        // Never past the bottom of the screen: a window that sits low
+        // moves up as much as it must.
+        if let visible = screen?.visibleFrame, rect.minY < visible.minY {
+            rect.origin.y = min(visible.minY, visible.maxY - rect.height)
+        }
+        return rect
+    }
+}
+
 /// Owns the settings window. Opening it activates the app, which a
 /// background (accessory) app otherwise never does.
 @MainActor final class SettingsWindowController {
@@ -275,7 +361,7 @@ struct ShortcutRecorder: NSViewRepresentable {
 
     func show() {
         if window == nil {
-            let window = NSWindow(
+            let window = TopAnchoredWindow(
                 contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false
             )
             window.title = "Klippari Settings"

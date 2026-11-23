@@ -21,7 +21,7 @@ import ClipboardCore
 
     @Test func anExpiredSecretLeavesTheSelectionInItsPlace() {
         let model = makeModel("a", "b")
-        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(1))
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .content, now: at(1))
         store.add(text("c"), sourceApp: "Notes", now: at(500))
         model.open()
         // c, secret, b, a
@@ -34,15 +34,41 @@ import ClipboardCore
 
     @Test func notASecretShowsTheSelectedSecretInFull() {
         let model = makeModel("a")
-        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(500))
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .content, now: at(500))
         model.open()
         #expect(model.selectionIsSecret)
+        // Cmd+S does nothing until Always mask chosen texts is on.
+        #expect(!model.selectionCanBeUnmasked)
+        #expect(!model.toggleSelectedSecret())
+        store.detectsSecrets = true
+        store.masksChosenTexts = true
+        #expect(model.selectionCanBeUnmasked)
         #expect(titles(model) == [Secrets.dots, "a"])
         let id = model.selectedID
-        model.keepSelectedAsOrdinary()
+        model.toggleSelectedSecret()
         #expect(!model.selectionIsSecret)
         #expect(model.selectedID == id)
         #expect(titles(model) == ["hunter2-but-longer", "a"])
+    }
+
+    @Test func cmdSMasksAnOrdinaryRowOnlyWithSecretsOn() {
+        let model = makeModel("a", "me@example.com")
+        model.open()
+        #expect(!model.selectionCanBeMasked)
+        #expect(!model.toggleSelectedSecret())
+        store.detectsSecrets = true
+        #expect(!model.selectionCanBeMasked)
+        store.masksChosenTexts = true
+        #expect(model.selectionCanBeMasked)
+        #expect(model.toggleSelectedSecret())
+        #expect(model.selectionIsSecret)
+        #expect(model.notice != nil)
+        #expect(titles(model) == [Secrets.dots, "a"])
+        // Cmd+S again: not a secret after all, and the notice goes.
+        #expect(model.toggleSelectedSecret())
+        #expect(model.notice == nil)
+        #expect(titles(model) == ["me@example.com", "a"])
+        #expect(store.maskedTexts.isEmpty)
     }
 
     @Test func openSelectsNewest() {

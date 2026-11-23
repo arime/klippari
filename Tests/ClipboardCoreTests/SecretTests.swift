@@ -27,7 +27,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
 
     @Test func secretsStayInMemoryOnly() {
         let store = makeStore()
-        let item = store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: true, now: at(0))
+        let item = store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: .content, now: at(0))
         #expect(item.expiresAt == at(HistoryStore.secretLifetime))
         #expect(itemsOnDisk() == 0)
         #expect(store.fullContent(for: item.id) == text(fakeAnthropicKey))
@@ -37,7 +37,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
     @Test func secretsLeaveAfterTenMinutes() {
         let store = makeStore()
         store.add(text("plain"), sourceApp: nil, now: at(0))
-        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(0))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(0))
         #expect(!store.expireSecrets(now: at(599)))
         #expect(store.items.count == 2)
         #expect(store.expireSecrets(now: at(600)))
@@ -48,8 +48,8 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         let store = makeStore()
         #expect(store.nextSecretExpiry == nil)
         store.add(text("plain"), sourceApp: nil, now: at(0))
-        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(100))
-        store.add(text(fakeGitHubToken), sourceApp: nil, secret: true, now: at(50))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(100))
+        store.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(50))
         #expect(store.nextSecretExpiry == at(650))
         store.expireSecrets(now: at(650))
         #expect(store.nextSecretExpiry == at(700))
@@ -59,10 +59,10 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
 
     @Test func pastingDoesNotExtendASecretButCopyingAgainDoes() {
         let store = makeStore()
-        let item = store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(0))
+        let item = store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(0))
         store.markUsed(item.id, now: at(300))
         #expect(store.items[0].expiresAt == at(600))
-        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(400))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(400))
         #expect(store.items.count == 1)
         #expect(store.items[0].expiresAt == at(1000))
     }
@@ -71,7 +71,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         let store = makeStore()
         store.add(text("hunter2-but-longer"), sourceApp: "Notes", now: at(0))
         #expect(itemsOnDisk() == 1)
-        let item = store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(1))
+        let item = store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .content, now: at(1))
         #expect(itemsOnDisk() == 0)
         #expect(item.isSecret)
         #expect(store.items.count == 1)
@@ -87,7 +87,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         store.add(richCopy("hunter2-but-longer"), sourceApp: "Notes", now: at(0))
         store.add(text("other"), sourceApp: "Notes", now: at(1))
         #expect(itemsOnDisk() == 2)
-        let item = store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(2))
+        let item = store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .content, now: at(2))
         #expect(itemsOnDisk() == 1)
         #expect(store.items.map(\.id) == [item.id, store.items[1].id])
         #expect(store.items.map(\.isSecret) == [true, false])
@@ -99,7 +99,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         store.add(richCopy("hunter2-but-longer"), sourceApp: "Notes", now: at(0))
         store.add(text("other"), sourceApp: "Notes", now: at(1))
         store.archiveAll(now: at(2))
-        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(3))
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .content, now: at(3))
         #expect(store.archiveSummary?.count == 1)
         store.expireSecrets(now: at(1000))
         store.restoreArchive()
@@ -108,7 +108,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
 
     @Test func theSameTextFromAnyAppIsTheSecretAgain() {
         let store = makeStore()
-        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(0))
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .content, now: at(0))
         let rich = store.add(richCopy("hunter2-but-longer"), sourceApp: "Notes", now: at(300))
         #expect(itemsOnDisk() == 0)
         #expect(store.items.count == 1)
@@ -124,14 +124,14 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
 
     @Test func keepingASecretAsOrdinarySavesIt() {
         let store = makeStore()
-        let item = store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: true, now: at(0))
+        let item = store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: .content, now: at(0))
         store.keepAsOrdinary(item.id)
         #expect(store.items.map(\.isSecret) == [false])
         #expect(itemsOnDisk() == 1)
         #expect(!store.expireSecrets(now: at(1000)))
         #expect(makeStore().items.map(\.content) == [text(fakeAnthropicKey)])
         // Copied again, it is not taken for a secret this run.
-        store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: true, now: at(1001))
+        store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: .content, now: at(1001))
         #expect(store.items.map(\.isSecret) == [false])
         #expect(itemsOnDisk() == 1)
     }
@@ -140,57 +140,384 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         let store = makeStore()
         var calls: [Bool] = []
         store.onSecretAdded = { calls.append($0) }
-        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(0))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(0))
         store.add(richCopy("hunter2-but-longer"), sourceApp: "Notes", now: at(1))
         store.add(text("other"), sourceApp: "Notes", now: at(2))
         store.archiveAll(now: at(3))
-        store.add(text(fakeGitHubToken), sourceApp: nil, secret: true, now: at(4))
-        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(5))
+        store.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(4))
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .content, now: at(5))
         #expect(calls == [false, false, true])
     }
 
-    @Test func aTokenSavedByAnEarlierBuildIsASecretAtLaunch() {
+    @Test func aSavedTokenStaysSavedAtLaunch() {
         let store = makeStore()
-        // An earlier build saved this as an ordinary item.
+        // Saved before Secrets was turned on, or by an earlier build.
         store.add(text("export GH_TOKEN=\(fakeGitHubToken)"), sourceApp: "Terminal", now: at(0))
         store.add(text("plain"), sourceApp: nil, now: at(1))
-        #expect(itemsOnDisk() == 2)
         let reopened = makeStore()
-        #expect(reopened.items.map(\.isSecret) == [false, true])
-        #expect(itemsOnDisk() == 1)
-        #expect(reopened.fullContent(for: reopened.items[1].id) == text("export GH_TOKEN=\(fakeGitHubToken)"))
-        #expect(reopened.nextSecretExpiry != nil)
+        reopened.detectsSecrets = true
+        #expect(reopened.items.map(\.isSecret) == [false, false])
+        #expect(itemsOnDisk() == 2)
+        #expect(reopened.nextSecretExpiry == nil)
     }
 
     @Test func notASecretHoldsAcrossRestarts() {
         let store = makeStore()
-        let item = store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: true, now: at(0))
+        let item = store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: .content, now: at(0))
         store.keepAsOrdinary(item.id)
         let reopened = makeStore()
         #expect(reopened.items.map(\.isSecret) == [false])
         #expect(reopened.items[0].notSecret)
         // Copied again, as plain text or with other types: still not a secret.
-        reopened.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: true, now: at(1))
-        reopened.add(richCopy(fakeAnthropicKey), sourceApp: "Notes", secret: true, now: at(2))
+        reopened.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: .content, now: at(1))
+        reopened.add(richCopy(fakeAnthropicKey), sourceApp: "Notes", secret: .content, now: at(2))
         #expect(reopened.items.map(\.isSecret) == [false, false])
         #expect(makeStore().items.map(\.isSecret) == [false, false])
     }
 
-    @Test func aClearedTokenIsRestoredAsASecret() {
+    @Test func aClearedTokenIsRestoredAsItWasSaved() {
         let store = makeStore()
+        store.detectsSecrets = true
         store.add(text(fakeGitHubToken), sourceApp: "Terminal", now: at(0))
         store.add(text("plain"), sourceApp: nil, now: at(1))
         store.archiveAll(now: at(2))
         #expect(store.restoreArchive() == RestoreResult(restored: 2, noRoom: 0))
-        #expect(store.items.map(\.isSecret) == [false, true])
+        #expect(store.items.map(\.isSecret) == [false, false])
+        #expect(itemsOnDisk() == 2)
+    }
+
+    @Test func aPasswordAppCopyOfASavedTextIsNotASecret() {
+        let store = makeStore()
+        let email = store.add(text("me@example.com"), sourceApp: "Mail", now: at(0))
+        // The user name field in Passwords.
+        let copy = store.add(text("me@example.com"), sourceApp: "Passwords", secret: .sourceApp, now: at(1))
+        #expect(copy.id == email.id)
+        #expect(store.items.map(\.isSecret) == [false])
         #expect(itemsOnDisk() == 1)
+    }
+
+    @Test func aPasswordAppSecretLeavesItsClearedCopyAndGivesWayOnRestore() {
+        let store = makeStore()
+        var calls: [Bool] = []
+        store.onSecretAdded = { calls.append($0) }
+        store.add(text("me@example.com"), sourceApp: "Mail", now: at(0))
+        store.archiveAll(now: at(1))
+        store.add(text("me@example.com"), sourceApp: "Passwords", secret: .sourceApp, now: at(2))
+        #expect(calls == [false])
+        #expect(store.archiveSummary?.count == 1)
+        #expect(store.restoreArchive() == RestoreResult(restored: 1, noRoom: 0))
+        #expect(store.items.map(\.isSecret) == [false])
+        #expect(itemsOnDisk() == 1)
+    }
+
+    @Test func aPasswordAppSecretIsStillASecretWhenNew() {
+        let store = makeStore()
+        store.add(text("correct horse battery staple"), sourceApp: "Passwords", secret: .sourceApp, now: at(0))
+        #expect(store.items.map(\.isSecret) == [true])
+        #expect(!store.items[0].secretByContent)
+        #expect(itemsOnDisk() == 0)
+    }
+
+    @Test func aRepeatCopyOfASecretOpensNoClearedHistory() {
+        let store = makeStore()
+        var calls: [Bool] = []
+        store.onSecretAdded = { calls.append($0) }
+        store.add(text(fakeGitHubToken), sourceApp: nil, now: at(0))
+        store.archiveAll(now: at(1))
+        store.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(2))
+        store.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(3))
+        #expect(calls == [true, false])
         #expect(store.archiveSummary == nil)
+    }
+
+    @Test func theClearedHistoryCanBeSearchedInTheBackground() async throws {
+        let store = makeStore()
+        store.scansClearedHistoryInBackground = true
+        var calls: [Bool] = []
+        store.onSecretAdded = { calls.append($0) }
+        store.add(text(fakeGitHubToken), sourceApp: nil, now: at(0))
+        store.add(text("other"), sourceApp: nil, now: at(1))
+        store.archiveAll(now: at(2))
+        store.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(3))
+        #expect(calls == [false])
+        for _ in 0..<200 where calls.count < 2 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(calls == [false, true])
+        #expect(store.archiveSummary?.count == 1)
+    }
+
+    /// Waits for the background searches the store started, which end
+    /// on the main actor.
+    func waitForSearches(_ done: () -> Bool) async throws {
+        for _ in 0..<300 where !done() {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    @Test func restoreDuringASearchDoesNotBringTheSecretBack() async throws {
+        let store = makeStore()
+        store.scansClearedHistoryInBackground = true
+        store.add(text(fakeGitHubToken), sourceApp: nil, now: at(0))
+        store.add(text("other"), sourceApp: nil, now: at(1))
+        store.archiveAll(now: at(2))
+        let secret = store.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(3))
+        // The secret leaves before the search is done.
+        store.remove(secret.id)
+        #expect(store.restoreArchive() == RestoreResult(restored: 1, noRoom: 0))
+        #expect(store.items.map(\.content) == [text("other")])
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(store.items.map(\.content) == [text("other")])
+        #expect(itemsOnDisk() == 1)
+    }
+
+    @Test func clearingDuringASearchKeepsWhatWasCleared() async throws {
+        let store = makeStore()
+        store.scansClearedHistoryInBackground = true
+        var changed = 0
+        store.onSecretAdded = { if $0 { changed += 1 } }
+        store.add(text(fakeGitHubToken), sourceApp: nil, now: at(0))
+        store.archiveAll(now: at(1))
+        store.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(2))
+        for n in 0..<20 {
+            store.add(text("item \(n)"), sourceApp: nil, now: at(3 + Double(n)))
+        }
+        // A second clear while the search is under way: the secret goes,
+        // the twenty items are cleared, and none of them is lost.
+        #expect(store.archiveAll(now: at(100)) == 20)
+        try await waitForSearches { changed > 0 }
+        #expect(changed == 1)
+        #expect(store.archiveSummary?.count == 20)
+        #expect(store.restoreArchive() == RestoreResult(restored: 20, noRoom: 0))
+    }
+
+    @Test func quittingFinishesTheSearches() {
+        let store = makeStore()
+        store.scansClearedHistoryInBackground = true
+        store.add(text(fakeGitHubToken), sourceApp: nil, now: at(0))
+        store.archiveAll(now: at(1))
+        store.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(2))
+        store.finishPendingArchiveSearches()
+        #expect(store.archiveSummary == nil)
+        #expect(makeStore().restoreArchive() == RestoreResult(restored: 0, noRoom: 0))
+    }
+
+    @Test func takingOverASecretKeepsASavedNotASecretMark() {
+        let store = makeStore()
+        let saved = store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: .content, now: at(0))
+        store.keepAsOrdinary(saved.id)
+        // A run that could not open the saved history took it for one.
+        let unsaved = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
+        unsaved.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: .content, now: at(1))
+        let reopened = makeStore()
+        reopened.adopt(unsaved)
+        #expect(reopened.items.map(\.isSecret) == [false])
+        #expect(itemsOnDisk() == 1)
+    }
+
+    @Test func aTooShortTextIsNotMaskedAlways() {
+        let store = makeStore()
+        let item = store.add(text(" ab \n"), sourceApp: nil, now: at(0))
+        #expect(!store.maskAlways(item.id, now: at(1)))
+        #expect(store.maskedTexts.isEmpty)
+        #expect(store.items.map(\.isSecret) == [false])
+    }
+
+    @Test func anUnreadableMaskedTextsFileIsReplaced() throws {
+        _ = makeStore()
+        try Data("not sealed".utf8).write(to: MaskedTexts.url(forItems: root))
+        let store = makeStore()
+        #expect(store.maskedTexts.isEmpty)
+        let item = store.add(text("me@example.com"), sourceApp: nil, now: at(0))
+        store.maskAlways(item.id, now: at(1))
+        #expect(makeStore().maskedTexts == ["me@example.com"])
+    }
+
+    @Test func maskingFallsBackWhenTheSavedCopyIsGone() {
+        let store = makeStore()
+        let item = store.add(text("me@example.com"), sourceApp: nil, now: at(0))
+        // The item's files went missing; its text is still in memory.
+        ItemStorage(root: root, cipher: testCipher).delete(id: item.id)
+        #expect(store.maskAlways(item.id, now: at(1)))
+        #expect(store.fullContent(for: item.id) == text("me@example.com"))
+    }
+
+    @Test func theMarkEndsWhenItsItemIsDeleted() {
+        let store = makeStore()
+        let item = store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(0))
+        store.keepAsOrdinary(item.id)
+        store.remove(item.id)
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(1))
+        #expect(store.items.map(\.isSecret) == [true])
+        #expect(itemsOnDisk() == 0)
+    }
+
+    @Test func theMarkEndsWhenItsItemIsTrimmed() {
+        let store = makeStore(limit: 1)
+        let item = store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(0))
+        store.keepAsOrdinary(item.id)
+        store.add(text("newer"), sourceApp: nil, now: at(1))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(2))
+        #expect(store.items.map(\.isSecret) == [true, false])
+    }
+
+    @Test func aClearedMarkedCopyIsKeptAndComesBackMarked() {
+        let store = makeStore()
+        let item = store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(0))
+        store.keepAsOrdinary(item.id)
+        store.archiveAll(now: at(1))
+        // After a relaunch the same text is a secret again, but the copy
+        // the user marked stays in the cleared history.
+        let reopened = makeStore()
+        reopened.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(2))
+        #expect(reopened.archiveSummary?.count == 1)
+        // Restored, it brings its mark back, and the secret gives way.
+        #expect(reopened.restoreArchive() == RestoreResult(restored: 1, noRoom: 0))
+        #expect(reopened.items.map(\.isSecret) == [false])
+        #expect(reopened.items[0].notSecret)
+    }
+
+    /// A cleared rich copy of a token, then the token as a secret with
+    /// the search under way, which Cmd+S 'not a secret' must stop.
+    func storeSearchingForAKeptToken() -> HistoryStore {
+        let store = makeStore()
+        store.scansClearedHistoryInBackground = true
+        store.add(richCopy(fakeGitHubToken), sourceApp: "Notes", now: at(0))
+        store.archiveAll(now: at(1))
+        let secret = store.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(2))
+        store.keepAsOrdinary(secret.id)
+        return store
+    }
+
+    @Test func notASecretDuringASearchStopsItsDeletions() async throws {
+        let store = storeSearchingForAKeptToken()
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(store.archiveSummary?.count == 1)
+        #expect(store.restoreArchive() == RestoreResult(restored: 1, noRoom: 0))
+        #expect(store.items.map(\.isSecret) == [false, false])
+    }
+
+    @Test func notASecretBeforeQuittingStopsItsDeletions() {
+        let store = storeSearchingForAKeptToken()
+        store.finishPendingArchiveSearches()
+        #expect(store.archiveSummary?.count == 1)
+    }
+
+    @Test func maskingAlwaysBeatsAnOlderMarkInTheClearedHistory() async throws {
+        for background in [false, true] {
+            let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
+            store.scansClearedHistoryInBackground = background
+            let first = store.add(text("me@example.com"), sourceApp: nil, secret: .content, now: at(0))
+            store.keepAsOrdinary(first.id)
+            store.archiveAll(now: at(1))
+            let again = store.add(text("me@example.com"), sourceApp: nil, now: at(2))
+            #expect(store.maskAlways(again.id, now: at(3)))
+            // Restore while the search may still run brings nothing back.
+            #expect(store.restoreArchive() == RestoreResult(restored: 0, noRoom: 0), "background \(background)")
+            try await Task.sleep(for: .milliseconds(background ? 300 : 0))
+            #expect(store.archiveSummary == nil, "background \(background)")
+            store.expireSecrets(now: at(1000))
+            #expect(store.items.isEmpty)
+            #expect(store.add(text("me@example.com"), sourceApp: nil, secret: .content, now: at(1001)).isSecret)
+        }
+    }
+
+    @Test func maskingInTheBackgroundTakesTheClearedCopyOut() async throws {
+        let store = makeStore()
+        store.scansClearedHistoryInBackground = true
+        var changed = false
+        store.onSecretAdded = { if $0 { changed = true } }
+        store.add(text("me@example.com"), sourceApp: nil, now: at(0))
+        store.archiveAll(now: at(1))
+        let item = store.add(richCopy("me@example.com"), sourceApp: "Notes", now: at(2))
+        #expect(store.maskAlways(item.id, now: at(3)))
+        try await waitForSearches { changed }
+        #expect(store.archiveSummary == nil)
+    }
+
+    @Test func takingOverASecretSearchesTheClearedHistoryInTheBackground() async throws {
+        let store = makeStore()
+        store.scansClearedHistoryInBackground = true
+        var changed = false
+        store.onSecretAdded = { if $0 { changed = true } }
+        store.add(text(fakeGitHubToken), sourceApp: nil, now: at(0))
+        store.archiveAll(now: at(1))
+        let unsaved = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
+        unsaved.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(2))
+        store.adopt(unsaved)
+        // Restore while the search runs still leaves the copy out.
+        #expect(store.restoreArchive() == RestoreResult(restored: 0, noRoom: 0))
+        try await waitForSearches { changed || store.archiveSummary == nil }
+        #expect(store.archiveSummary == nil)
+        #expect(store.items.map(\.isSecret) == [true])
+    }
+
+    @Test func takingOverARichCopyOfASecretHereLeavesItOut() {
+        let store = makeStore()
+        store.add(text("hunter2-but-longer"), sourceApp: nil, secret: .content, now: at(0))
+        let unsaved = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
+        unsaved.add(richCopy("hunter2-but-longer"), sourceApp: "Notes", now: at(1))
+        store.adopt(unsaved)
+        #expect(store.items.map(\.isSecret) == [true])
+        #expect(itemsOnDisk() == 0)
+    }
+
+    @Test func maskingATextAlwaysMakesItsItemASecret() {
+        let store = makeStore()
+        store.detectsSecrets = true
+        let email = store.add(text("me@example.com"), sourceApp: "Mail", now: at(0))
+        store.add(richCopy("me@example.com"), sourceApp: "Notes", now: at(1))
+        store.add(text("other"), sourceApp: nil, now: at(2))
+        #expect(itemsOnDisk() == 3)
+        #expect(store.maskAlways(email.id, now: at(3)))
+        #expect(store.maskedTexts == ["me@example.com"])
+        #expect(store.items.filter(\.isSecret).map(\.id) == [email.id])
+        #expect(store.items.count == 2)
+        #expect(itemsOnDisk() == 1)
+        #expect(store.fullContent(for: email.id) == text("me@example.com"))
+        store.expireSecrets(now: at(1000))
+        #expect(store.items.map(\.content) == [text("other")])
+    }
+
+    @Test func maskedTextsAreSealedAndKeptAcrossRestarts() throws {
+        let store = makeStore()
+        let item = store.add(text("Me@Example.com"), sourceApp: "Mail", now: at(0))
+        store.maskAlways(item.id, now: at(1))
+        let file = MaskedTexts.url(forItems: root)
+        let raw = try Data(contentsOf: file)
+        #expect(ItemCipher.isSealed(raw))
+        #expect(raw.range(of: Data("Example".utf8)) == nil)
+        #expect(makeStore().maskedTexts == ["Me@Example.com"])
+        store.keepAsOrdinary(item.id)
+        #expect(makeStore().maskedTexts.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+    }
+
+    @Test func notASecretStopsMaskingTheTextsItHolds() {
+        let store = makeStore()
+        let item = store.add(text("me@example.com"), sourceApp: "Mail", now: at(0))
+        store.maskAlways(item.id, now: at(1))
+        store.keepAsOrdinary(item.id)
+        #expect(store.maskedTexts.isEmpty)
+        #expect(store.items.map(\.isSecret) == [false])
+        #expect(itemsOnDisk() == 1)
+    }
+
+    @Test func takingOverMergesTheMaskedTexts() {
+        let store = makeStore()
+        let unsaved = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
+        let item = unsaved.add(text("me@example.com"), sourceApp: "Mail", now: at(0))
+        unsaved.maskAlways(item.id, now: at(1))
+        store.adopt(unsaved)
+        #expect(store.maskedTexts == ["me@example.com"])
+        #expect(store.items.map(\.isSecret) == [true])
+        #expect(makeStore().maskedTexts == ["me@example.com"])
     }
 
     @Test func clearingDropsSecretsAndArchivesTheRest() {
         let store = makeStore()
         store.add(text("plain"), sourceApp: nil, now: at(0))
-        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(1))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(1))
         // Only what can be restored is counted.
         #expect(store.archiveAll(now: at(2)) == 1)
         #expect(store.items.isEmpty)
@@ -203,14 +530,14 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         let store = makeStore(limit: 2)
         store.add(text("oldest"), sourceApp: nil, now: at(0))
         store.add(text("newer"), sourceApp: nil, now: at(1))
-        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(2))
-        store.add(text(otherAnthropicKey), sourceApp: nil, secret: true, now: at(3))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(2))
+        store.add(text(otherAnthropicKey), sourceApp: nil, secret: .content, now: at(3))
         #expect(store.items.count == 4)
         #expect(itemsOnDisk() == 2)
         store.expireSecrets(now: at(1000))
         #expect(store.items.map(\.content) == [text("newer"), text("oldest")])
         // A saved copy past the limit still drops the oldest saved item.
-        store.add(text(fakeGitHubToken), sourceApp: nil, secret: true, now: at(1001))
+        store.add(text(fakeGitHubToken), sourceApp: nil, secret: .content, now: at(1001))
         store.add(text("newest"), sourceApp: nil, now: at(1002))
         #expect(store.items.map(\.content) == [text("newest"), text(fakeGitHubToken), text("newer")])
     }
@@ -220,7 +547,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         store.add(text("a"), sourceApp: nil, now: at(0))
         store.add(text("b"), sourceApp: nil, now: at(1))
         store.archiveAll(now: at(2))
-        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(3))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(3))
         #expect(store.restoreArchive() == RestoreResult(restored: 2, noRoom: 0))
         #expect(store.items.count == 3)
     }
@@ -229,7 +556,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         let store = makeStore()
         store.add(text("plain"), sourceApp: nil, now: at(0))
         store.archiveAll(now: at(1))
-        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(2))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(2))
         #expect(store.archiveAll(now: at(3)) == 0)
         #expect(store.items.isEmpty)
         #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(1)))
@@ -242,7 +569,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         let password = "correct horse battery staple"
         store.add(text(password), sourceApp: "Notes", now: at(0))
         store.archiveAll(now: at(1))
-        store.add(text(password), sourceApp: "Passwords", secret: true, now: at(2))
+        store.add(text(password), sourceApp: "Passwords", secret: .content, now: at(2))
         #expect(store.archiveSummary == nil)
         store.expireSecrets(now: at(2 + HistoryStore.secretLifetime))
         #expect(store.items.isEmpty)
@@ -256,7 +583,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         store.add(text("plain"), sourceApp: nil, now: at(0))
         store.add(text(fakeAnthropicKey), sourceApp: nil, now: at(0))
         store.archiveAll(now: at(1))
-        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(2))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(2))
         // The clear keeps its date, and so its time left.
         #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(1)))
         store.expireSecrets(now: at(2 + HistoryStore.secretLifetime))
@@ -267,7 +594,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
     @Test func restoreDeletesTheArchivedCopyOfASecretInMemory() {
         let password = "correct horse battery staple"
         let store = makeStore()
-        store.add(text(password), sourceApp: "Passwords", secret: true, now: at(0))
+        store.add(text(password), sourceApp: "Passwords", secret: .content, now: at(0))
         // A copy reaches the cleared history after the secret was added,
         // here through another store on the same folder.
         let other = makeStore()
@@ -288,7 +615,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         store.add(text(password), sourceApp: "Notes", now: at(0))
         store.archiveAll(now: at(1))
         let unsaved = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
-        unsaved.add(text(password), sourceApp: "Passwords", secret: true, now: at(2))
+        unsaved.add(text(password), sourceApp: "Passwords", secret: .content, now: at(2))
         store.adopt(unsaved)
         #expect(store.items.map(\.isSecret) == [true])
         #expect(store.archiveSummary == nil)
@@ -299,7 +626,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         store.add(richCopy("hunter2-but-longer"), sourceApp: "Notes", now: at(0))
         store.add(text("other"), sourceApp: "Notes", now: at(1))
         let unsaved = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
-        unsaved.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(2))
+        unsaved.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .content, now: at(2))
         store.adopt(unsaved)
         #expect(itemsOnDisk() == 1)
         #expect(store.items.map(\.isSecret) == [true, false])
@@ -309,7 +636,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
     @Test func secretsHaveNoThumbnail() {
         let store = makeStore()
         let png = content(TypedData(type: TypeName.png, data: makePNG(width: 20, height: 20)))
-        let item = store.add(png, sourceApp: nil, secret: true, now: at(0))
+        let item = store.add(png, sourceApp: nil, secret: .content, now: at(0))
         // The panel and the preview read thumbnails from the storage.
         #expect(ItemStorage(root: root, cipher: testCipher).thumbnail(for: item.id) == nil)
     }
@@ -318,7 +645,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
 @MainActor @Suite struct SecretRowDetailTests {
     func row(_ content: ClipContent) -> RowPresentation {
         let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
-        return RowPresentation(store.add(content, sourceApp: nil, secret: true, now: at(0)))
+        return RowPresentation(store.add(content, sourceApp: nil, secret: .content, now: at(0)))
     }
 
     @Test func aSecretRowShowsNothingButItsMaskedLine() {
@@ -402,10 +729,11 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
 
     @Test func passwordAppsMakeAnyCopyASecret() {
         let password = text("correct horse battery staple")
-        #expect(Secrets.isSecret(password, frontmostBundleID: "com.apple.keychainaccess"))
-        #expect(Secrets.isSecret(password, frontmostBundleID: "com.apple.Passwords"))
-        #expect(!Secrets.isSecret(password, frontmostBundleID: "com.apple.Notes"))
-        #expect(!Secrets.isSecret(password, frontmostBundleID: nil))
+        #expect(Secrets.reason(for: password, frontmostBundleID: "com.apple.keychainaccess") == .sourceApp)
+        #expect(Secrets.reason(for: password, frontmostBundleID: "com.apple.Passwords") == .sourceApp)
+        #expect(Secrets.reason(for: password, frontmostBundleID: "com.apple.Notes") == nil)
+        #expect(Secrets.reason(for: password, frontmostBundleID: nil) == nil)
+        #expect(Secrets.reason(for: password, frontmostBundleID: nil, passwordAppWasFrontmost: true) == .sourceApp)
     }
 
     @Test func theCopysOwnSourceWinsOverTheFrontmostApp() {
@@ -413,16 +741,91 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
             typed(TypeName.plainText, "correct horse battery staple"),
             typed(Secrets.sourceType, "com.bitwarden.desktop")
         )
-        #expect(Secrets.isSecret(marked, frontmostBundleID: "com.apple.Notes"))
+        #expect(Secrets.reason(for: marked, frontmostBundleID: "com.apple.Notes") == .sourceApp)
         let fromNotes = content(
             typed(TypeName.plainText, "correct horse battery staple"),
             typed(Secrets.sourceType, "com.apple.Notes")
         )
-        #expect(!Secrets.isSecret(fromNotes, frontmostBundleID: "com.apple.keychainaccess"))
+        #expect(Secrets.reason(for: fromNotes, frontmostBundleID: "com.apple.keychainaccess") == nil)
     }
 
-    @Test func credentialsInTextMakeASecret() {
-        #expect(Secrets.isSecret(text("token: \(fakeGitHubToken)"), frontmostBundleID: nil))
+    @Test func aCopyThatIsMostlyACredentialIsASecret() {
+        for string in [
+            "token: \(fakeGitHubToken)",
+            "  export GH_TOKEN=\(fakeGitHubToken)\n",
+            "postgres://app:s3cret-pass@db.internal:5432/app",
+            "curl -H 'Authorization: Bearer \(fakeJWT)' https://api.example.com/v1/me",
+            fakePrivateKey,
+            fakePrivateKey + "\n",
+        ] {
+            #expect(Secrets.reason(for: text(string), frontmostBundleID: nil) == .content, "\(string.prefix(12))")
+        }
+    }
+
+    @Test func aLongTokenOnItsOwnIsASecret() {
+        let longJWT = "ey" + "J" + String(repeating: "a", count: 300) + "." + String(repeating: "b", count: 600)
+            + "." + String(repeating: "c", count: 300)
+        for string in [
+            longJWT,
+            "Authorization: Bearer \(longJWT)",
+            "curl -H 'Authorization: Bearer \(longJWT)' https://api.example.com/v1/me",
+            "\(fakeAWSKey)\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            "\(fakeGitHubToken)\n\n\(fakeAnthropicKey)\n",
+        ] {
+            #expect(Secrets.reason(for: text(string), frontmostBundleID: nil) == .content, "\(string.prefix(12))")
+        }
+    }
+
+    @Test func commentsHeadersAndCertificatesAroundAKeyAreFine() {
+        let certificate = "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----"
+        for string in [
+            "[default]\naws_access_key_id = \(fakeAWSKey)\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            "# prod token\nexport GH_TOKEN=\(fakeGitHubToken)",
+            "// staging\n\(fakeAnthropicKey)",
+            certificate + "\n" + fakePrivateKey,
+            fakePrivateKey.replacingOccurrences(of: "\n", with: " "),
+            "# export GH_TOKEN=\(fakeGitHubToken)",
+            "// \(fakeAnthropicKey) (old)",
+            ";\(fakeGitHubToken)",
+            "#\(fakeGitHubToken)",
+            "[\(fakeGitHubToken)]",
+            "[profile temp]\naws_access_key_id = \(fakeAWSKey)\n"
+                + "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
+                + "aws_session_token = " + String(repeating: "IQoJb3JpZ2luX2Vj", count: 10),
+        ] {
+            #expect(Secrets.reason(for: text(string), frontmostBundleID: nil) == .content, "\(string.prefix(12))")
+        }
+    }
+
+    @Test func aBareAWSSecretKeyOrALoneKeyHeaderIsNot() {
+        for string in [
+            "\(fakeAWSKey)\nwJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            "-----BEGIN RSA " + "PRIVATE KEY-----",
+            "# just a comment",
+            "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----",
+        ] {
+            #expect(Secrets.reason(for: text(string), frontmostBundleID: nil) == nil, "\(string.prefix(12))")
+        }
+    }
+
+    @Test func aLongerTextThatMerelyHoldsACredentialIsNot() {
+        for string in [
+            "services:\n  db:\n    environment:\n      DATABASE_URL: postgres://postgres:postgres@localhost/db\n",
+            "12:00:01 GET /v1/me 200\n12:00:02 auth \(fakeJWT) ok\n",
+            "Example key ID: \(fakeAWSKey)\nSee the IAM docs for more.",
+            "Notes\n" + fakePrivateKey,
+            String(repeating: "log ", count: 70) + fakeGitHubToken,
+            "12:00:01 " + String(repeating: "x", count: 250) + " " + fakeJWT,
+            Array(repeating: "export GH_TOKEN=\(fakeGitHubToken)", count: 6).joined(separator: "\n"),
+        ] {
+            #expect(Secrets.reason(for: text(string), frontmostBundleID: nil) == nil, "\(string.prefix(12))")
+        }
+    }
+
+    @Test func aCopyHoldingAMaskedTextIsASecret() {
+        let texts = ["me@example.com", "  "]
+        #expect(Secrets.reason(for: text("Write to ME@example.com\nThanks"), frontmostBundleID: nil, maskedTexts: texts) == .content)
+        #expect(Secrets.reason(for: text("Write to someone"), frontmostBundleID: nil, maskedTexts: texts) == nil)
     }
 }
 
@@ -501,7 +904,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(model.rows.map(\.presentation.title) == [password])
 
         // The same text again, this time with a password app in front.
-        let secret = store.add(text(password), sourceApp: "Keychain Access", secret: true, now: at(1))
+        let secret = store.add(text(password), sourceApp: "Keychain Access", secret: .content, now: at(1))
         #expect(secret.id == plain.id)
         #expect(model.rows.count == 1)
         #expect(model.rows[0].presentation.title == Secrets.dots)
@@ -514,7 +917,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
     @Test func panelShowsTimeLeft() {
         let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
         store.add(text("plain"), sourceApp: nil, now: at(0))
-        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(0))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: .content, now: at(0))
         let model = PanelModel(store: store, now: { at(61) })
         model.open()
         #expect(model.rows.map(\.expiresIn) == ["9 min", nil])
@@ -549,8 +952,9 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
     let pasteboard = FakePasteboard()
     let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
 
-    func makeMonitor(_ front: FrontmostApp) -> ClipboardMonitor {
-        ClipboardMonitor(
+    func makeMonitor(_ front: FrontmostApp, detecting: Bool = true) -> ClipboardMonitor {
+        store.detectsSecrets = detecting
+        return ClipboardMonitor(
             pasteboard: pasteboard, store: store,
             sourceApp: { front.app.name }, sourceBundleID: { front.app.bundleID }, now: { at(0) }
         )
@@ -624,6 +1028,47 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         monitor.tick()
         #expect(store.items.map(\.isSecret) == [false])
         #expect(store.items[0].sourceApp == "Notes")
+    }
+
+    @Test func withSecretsOffEveryCopyIsSaved() {
+        let front = FrontmostApp("Passwords", "com.apple.Passwords")
+        let monitor = makeMonitor(front, detecting: false)
+        pasteboard.copy(text("correct horse battery staple"))
+        monitor.tick()
+        front.switchTo("Terminal", "com.apple.Terminal", monitor: monitor)
+        monitor.tick()
+        pasteboard.copy(text(fakeGitHubToken))
+        monitor.tick()
+        #expect(store.items.map(\.isSecret) == [false, false])
+    }
+
+    @Test func turningSecretsOffLeavesSecretsToExpire() {
+        let front = FrontmostApp("Terminal", "com.apple.Terminal")
+        let monitor = makeMonitor(front)
+        pasteboard.copy(text(fakeGitHubToken))
+        monitor.tick()
+        store.detectsSecrets = false
+        pasteboard.copy(text("plain"))
+        monitor.tick()
+        #expect(store.items.map(\.isSecret) == [false, true])
+    }
+
+    @Test func aNewCopyHoldingAMaskedTextIsASecret() {
+        let front = FrontmostApp("Mail", "com.apple.mail")
+        let monitor = makeMonitor(front)
+        pasteboard.copy(text("me@example.com"))
+        monitor.tick()
+        store.maskAlways(store.items[0].id, now: at(0))
+        store.expireSecrets(now: at(1000))
+        // With Always mask chosen texts off, the list is not applied.
+        pasteboard.copy(text("Reply to me@example.com today"))
+        monitor.tick()
+        #expect(store.items.map(\.isSecret) == [false])
+        store.masksChosenTexts = true
+        pasteboard.copy(text("Reply to me@example.com tomorrow"))
+        monitor.tick()
+        #expect(store.items.map(\.isSecret) == [true, false])
+        #expect(store.items[0].secretByContent)
     }
 
     @Test func aSwitchWhilePausedRecordsNothing() {

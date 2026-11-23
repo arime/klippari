@@ -92,10 +92,47 @@ public struct RestoreResult: Equatable, Sendable {
     public var onChange: (() -> Void)?
     /// Called when a secret joins the history, so its expiry can be
     /// timed; true when that took items out of the cleared history.
+    /// With `scansClearedHistoryInBackground`, it is called again, with
+    /// true, once the cleared history has been searched and copies were
+    /// deleted.
     public var onSecretAdded: ((_ clearedHistoryChanged: Bool) -> Void)?
-    /// Texts the user said are not secrets (`keepAsOrdinary`), by
-    /// `secretKey`: those of this run, and of the saved items marked so.
-    private var notSecrets: Set<String> = []
+    /// Whether a new secret's copies are looked for in the cleared
+    /// history off the main thread. That means opening every item in it,
+    /// which is slow for a large one, and it happens in the clipboard
+    /// poll. The app turns it on; tests leave it off, to see the result
+    /// at once. Restore deletes copies of a secret in the history by
+    /// itself, so it is safe while a search is under way.
+    public var scansClearedHistoryInBackground = false
+    /// Whether the user said this text is no secret (`keepAsOrdinary`):
+    /// true while an ordinary item with its text and that mark is in the
+    /// history. The mark lives in the item, saved in its manifest, so it
+    /// goes when the item leaves the history (cleared, trimmed or
+    /// deleted), and comes back with it on Restore.
+    private func isMarkedNotSecret(_ key: String) -> Bool {
+        items.contains { !$0.isSecret && $0.notSecret && Self.secretKey($0) == key }
+    }
+
+    /// The Secrets setting. Off by default: every copy is then saved, and
+    /// nothing is taken for a secret. Turning it off leaves secrets
+    /// already in the history to expire as usual.
+    public var detectsSecrets = false
+    /// The setting nested under Secrets, 'Always mask chosen texts'. Off
+    /// by default. While it and `detectsSecrets` are on, Cmd+S in the
+    /// panel works both ways (`maskAlways`, `keepAsOrdinary`) and new
+    /// copies holding a text in `maskedTexts` are secrets. Off, the list
+    /// is kept but not applied.
+    public var masksChosenTexts = false
+
+    /// Whether Cmd+S in the panel does anything.
+    public var secretShortcutEnabled: Bool { detectsSecrets && masksChosenTexts }
+
+    /// Where `maskedTexts` is kept, sealed (see `MaskedTexts`).
+    private let maskedTextsURL: URL
+    /// Texts to mask always: a new copy containing one is a secret.
+    /// Added with `maskAlways` (Cmd+S on an ordinary row), removed by
+    /// `keepAsOrdinary` (Cmd+S on a secret that holds one). Nothing
+    /// lists them.
+    public private(set) var maskedTexts: [String] = []
 
     /// With `sealingPlainItems`, history written before encryption is
     /// encrypted first (see `sealPlainHistory`). The app does that on
@@ -103,6 +140,7 @@ public struct RestoreResult: Equatable, Sendable {
     public init(storage: ItemStorage, limit: Int = 50, sealingPlainItems: Bool = true) {
         self.storage = storage
         archiveRoot = StorageLocation.archiveRoot(forItems: storage.root)
+        maskedTextsURL = MaskedTexts.url(forItems: storage.root)
         self.limit = limit
         if sealingPlainItems {
             Self.sealPlainHistory(storage)
@@ -111,29 +149,16 @@ public struct RestoreResult: Equatable, Sendable {
         }
         self.items = storage.loadAll()
         trim()
-        notSecrets = Set(items.filter(\.notSecret).map(Self.secretKey))
-        takeOutTokens(now: Date())
+        // Saved items are never taken for secrets afterwards, at launch
+        // or on Restore: only new copies are.
+        maskedTexts = MaskedTexts.load(from: maskedTextsURL, cipher: storage.cipher)
     }
 
-    /// Whether a saved item holds a credential in a known format and the
-    /// user has not said it is no secret.
-    private func isUnmarkedToken(_ item: ClipItem) -> Bool {
-        guard !item.isSecret, !item.notSecret, !notSecrets.contains(Self.secretKey(item)),
-              let string = item.content.plainString
-        else { return false }
-        return Secrets.containsCredential(string)
-    }
-
-    /// A token saved before secrets were detected, or in a format added
-    /// since, is a secret now: it is read in full, taken off the disk,
-    /// and leaves the history like any secret, `secretLifetime` from now.
-    /// Cmd+S keeps one for good.
-    private func takeOutTokens(now: Date) {
-        for index in items.indices where isUnmarkedToken(items[index]) {
-            guard let full = storage.loadContent(id: items[index].id), full.isComplete else { continue }
-            storage.delete(id: items[index].id)
-            items[index].content = full
-            items[index].expiresAt = now.addingTimeInterval(Self.secretLifetime)
+    private func saveMaskedTexts() {
+        do {
+            try MaskedTexts.save(maskedTexts, to: maskedTextsURL, cipher: storage.cipher)
+        } catch {
+            Self.logger.error("Could not save the masked texts: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -191,18 +216,37 @@ public struct RestoreResult: Equatable, Sendable {
     /// item to the top instead of adding a duplicate. A `secret` copy is
     /// kept in memory only, until `secretLifetime` from now. A copy with
     /// the same text as a secret in the history is that secret again,
-    /// whatever app it came from. Adding a secret takes every copy with
-    /// its text out of the history, off the disk and out of the cleared
-    /// history: the same password copied from two apps usually comes
-    /// with different other types, so the exact content rarely matches.
+    /// whatever app it came from.
+    ///
+    /// A secret by its content takes every copy with its text out of the
+    /// history, off the disk and out of the cleared history: the same
+    /// password copied from two apps usually comes with different other
+    /// types, so the exact content rarely matches. A secret only by its
+    /// source app leaves earlier copies alone, and a text the history
+    /// already holds as an ordinary item is not taken for one at all: it
+    /// was saved and shown in clear before, so it may be a user name.
     @discardableResult
-    public func add(_ content: ClipContent, sourceApp: String?, secret: Bool = false, now: Date) -> ClipItem {
+    public func add(
+        _ content: ClipContent, sourceApp: String?, secret reason: Secrets.Reason? = nil, now: Date
+    ) -> ClipItem {
         let hash = content.contentHash
         let key = Self.secretKey(content, hash: hash)
-        let secret = !notSecrets.contains(key)
-            && (secret || items.contains { $0.isSecret && Self.secretKey($0) == key })
-        if secret {
-            let archiveChanged = deleteArchivedCopies(matching: key)
+        let live = items.first { $0.isSecret && Self.secretKey($0) == key }
+        let marked = isMarkedNotSecret(key)
+        var reason = marked ? nil : reason
+        if reason == nil, !marked, let live {
+            reason = live.secretByContent ? .content : .sourceApp
+        }
+        if reason == .sourceApp, live == nil,
+           items.contains(where: { !$0.isSecret && Self.secretKey($0) == key }) {
+            reason = nil
+        }
+        if let reason {
+            let byContent = reason == .content || live?.secretByContent == true
+            // A secret by content already in the history took the copies
+            // out when it came, so a repeat copy opens nothing.
+            let archiveChanged = byContent && live?.secretByContent != true
+                ? deleteArchivedCopies(matching: key) : false
             let earlier = items.filter { Self.secretKey($0) == key }
             for old in earlier where !old.isSecret {
                 storage.delete(id: old.id)
@@ -213,7 +257,7 @@ public struct RestoreResult: Equatable, Sendable {
                 id: earlier.first(where: { $0.contentHash == hash })?.id ?? UUID(),
                 capturedAt: now, lastUsedAt: now, sourceApp: sourceApp,
                 content: content, imageInfo: ImageInfo.inspect(content), contentHash: hash,
-                expiresAt: now.addingTimeInterval(Self.secretLifetime)
+                expiresAt: now.addingTimeInterval(Self.secretLifetime), secretByContent: byContent
             )
             items.insert(item, at: 0)
             onChange?()
@@ -227,7 +271,7 @@ public struct RestoreResult: Equatable, Sendable {
         var item = ClipItem(
             id: UUID(), capturedAt: now, lastUsedAt: now, sourceApp: sourceApp,
             content: content, imageInfo: ImageInfo.inspect(content), contentHash: hash,
-            notSecret: notSecrets.contains(key)
+            notSecret: marked
         )
         do {
             try storage.save(item)
@@ -252,12 +296,28 @@ public struct RestoreResult: Equatable, Sendable {
     /// be read whole is left out: it could not be pasted either.
     public func adopt(_ other: HistoryStore) {
         var archiveChanged = false
-        notSecrets.formUnion(other.notSecrets)
-        // Secrets first, as `add` takes them: each takes every item with
-        // its text out of this history, off the disk and out of the
-        // cleared history, even one already saved here.
+        // Marks from both histories: an item marked in either wins.
+        let marked = Set((items + other.items).filter { !$0.isSecret && $0.notSecret }.map(Self.secretKey))
+        let newTexts = other.maskedTexts.filter { text in
+            !maskedTexts.contains { $0.caseInsensitiveCompare(text) == .orderedSame }
+        }
+        if !newTexts.isEmpty {
+            maskedTexts += newTexts
+            saveMaskedTexts()
+        }
+        // Secrets first, as `add` takes them: one by its content takes
+        // every item with its text out of this history, off the disk and
+        // out of the cleared history, even one already saved here. One by
+        // its source app gives way to an ordinary item with its text here.
         for item in other.items where item.isSecret && item.content.isComplete {
             let key = Self.secretKey(item)
+            guard item.secretByContent else {
+                if !items.contains(where: { Self.secretKey($0) == key }) { items.append(item) }
+                continue
+            }
+            // The user said this text is no secret, in a saved item the
+            // other history could not know of: that mark wins.
+            if marked.contains(key) { continue }
             for old in items where !old.isSecret && Self.secretKey(old) == key {
                 storage.delete(id: old.id)
             }
@@ -266,7 +326,11 @@ public struct RestoreResult: Equatable, Sendable {
             items.append(item)
         }
         let present = Set(items.map(\.contentHash))
-        for var item in other.items where !item.isSecret && !present.contains(item.contentHash) {
+        // A secret by content here keeps its text off the disk, whatever
+        // other types a copy from the other history came with.
+        let contentSecrets = Set(items.filter { $0.isSecret && $0.secretByContent }.map(Self.secretKey))
+        for var item in other.items where !item.isSecret && !present.contains(item.contentHash)
+            && !contentSecrets.contains(Self.secretKey(item)) {
             let full = other.fullContent(for: item.id) ?? item.content
             guard full.isComplete else { continue }
             item.content = full
@@ -286,13 +350,21 @@ public struct RestoreResult: Equatable, Sendable {
 
     /// Turns a secret into an ordinary item, saved like any other, for
     /// when the user says it is not a secret. Copies of the same text are
-    /// not taken for secrets again until the app quits.
+    /// not taken for secrets again while the item is in the history.
+    /// Texts masked always that it holds are no longer masked, and a
+    /// search of the cleared history for its text, if one is under way,
+    /// no longer deletes what it finds (see `finishArchiveSearch`).
     public func keepAsOrdinary(_ id: UUID) {
         guard let index = items.firstIndex(where: { $0.id == id && $0.isSecret }) else { return }
         var item = items[index]
+        if let string = item.content.plainString {
+            let before = maskedTexts.count
+            maskedTexts.removeAll { Secrets.containsMaskedText(string, [$0]) }
+            if maskedTexts.count != before { saveMaskedTexts() }
+        }
         item.expiresAt = nil
         item.notSecret = true
-        notSecrets.insert(Self.secretKey(item))
+        item.secretByContent = false
         do {
             try storage.save(item)
             item.content = item.content.lightened
@@ -302,6 +374,44 @@ public struct RestoreResult: Equatable, Sendable {
         items[index] = item
         trim()
         onChange?()
+    }
+
+    /// Masks an ordinary item's text always, for Cmd+S on its row while
+    /// Secrets is on: the text joins `maskedTexts`, so new copies holding
+    /// it are secrets, and the item itself becomes one, taken off the
+    /// disk and out of the cleared history, and gone `secretLifetime`
+    /// from now. Other saved items that merely contain the text are left
+    /// as they are. A text shorter than `MaskedTexts.shortestText` is
+    /// refused. Returns whether the item became a secret.
+    @discardableResult
+    public func maskAlways(_ id: UUID, now: Date) -> Bool {
+        guard let index = items.firstIndex(where: { $0.id == id && !$0.isSecret }),
+              let text = items[index].content.plainString?.trimmingCharacters(in: .whitespacesAndNewlines),
+              text.count >= MaskedTexts.shortestText,
+              let full = items[index].content.isComplete ? items[index].content : storage.loadContent(id: id),
+              full.isComplete
+        else { return false }
+        var item = items[index]
+        let key = Self.secretKey(item)
+        if !Secrets.containsMaskedText(text, maskedTexts) {
+            maskedTexts.append(text)
+            saveMaskedTexts()
+        }
+        for old in items where Self.secretKey(old) == key && !old.isSecret {
+            storage.delete(id: old.id)
+        }
+        items.removeAll { $0.id != id && Self.secretKey($0) == key }
+        // Even a cleared copy marked as no secret goes: masking it always
+        // is the user's later word.
+        let archiveChanged = deleteArchivedCopies(matching: key, includingMarked: true)
+        item.content = full
+        item.notSecret = false
+        item.secretByContent = true
+        item.expiresAt = now.addingTimeInterval(Self.secretLifetime)
+        if let at = items.firstIndex(where: { $0.id == id }) { items[at] = item }
+        onChange?()
+        onSecretAdded?(archiveChanged)
+        return true
     }
 
     public func markUsed(_ id: UUID, now: Date) {
@@ -390,18 +500,88 @@ public struct RestoreResult: Equatable, Sendable {
         return archived
     }
 
+    /// Texts of secrets whose copies are still being looked for in the
+    /// cleared history, by `secretKey`, with how many searches are under
+    /// way for each. Restore deletes their archived copies itself rather
+    /// than restoring them, even once the secret has left the history.
+    private var pendingArchiveSearches: [String: Int] = [:]
+    /// Of those, the texts masked always by Cmd+S, whose search deletes
+    /// copies marked as no secret too: the user's later word wins.
+    private var pendingSearchesIncludingMarked: Set<String> = []
+
     /// Deletes every item in the cleared history that is the secret with
     /// this key, so that it cannot be restored from there as a saved
     /// item. A clear's date is in its folder's name, so its time left is
     /// kept. Opening the cleared history means decrypting every item in
     /// it, so nothing is opened when there is none. Returns whether any
-    /// item was deleted.
+    /// item was deleted; false at once with
+    /// `scansClearedHistoryInBackground`, which reports through
+    /// `onSecretAdded` instead.
+    ///
+    /// In the background only the reading happens off the main thread,
+    /// and it deletes nothing, not even what an interrupted save left:
+    /// a clear may be under way. The copies found are deleted back on
+    /// the main actor, where every other change to the cleared history
+    /// is made.
+    ///
+    /// Copies the user marked as no secret are left alone, unless
+    /// `includingMarked`, for a text the user has since masked always.
     @discardableResult
-    private func deleteArchivedCopies(matching key: String) -> Bool {
+    private func deleteArchivedCopies(matching key: String, includingMarked: Bool = false) -> Bool {
         let archive = archive
         guard !archive.clears().isEmpty else { return false }
+        guard scansClearedHistoryInBackground else {
+            return Self.deleteCopies(of: key, in: archive, includingMarked: includingMarked)
+        }
+        pendingArchiveSearches[key, default: 0] += 1
+        if includingMarked { pendingSearchesIncludingMarked.insert(key) }
+        Task { [weak self] in
+            let found = await Task.detached(priority: .utility) {
+                archive.items(tidying: false)
+                    .filter { (includingMarked || !$0.item.notSecret) && Self.secretKey($0.item) == key }
+                    .map { (storage: $0.clear.storage, id: $0.item.id) }
+            }.value
+            self?.finishArchiveSearch(for: key, deleting: found)
+        }
+        return false
+    }
+
+    private func finishArchiveSearch(for key: String, deleting found: [(storage: ItemStorage, id: UUID)]) {
+        if let count = pendingArchiveSearches[key], count > 1 {
+            pendingArchiveSearches[key] = count - 1
+        } else {
+            pendingArchiveSearches[key] = nil
+            pendingSearchesIncludingMarked.remove(key)
+        }
+        // Cmd+S said 'not a secret' while the search ran.
+        guard !found.isEmpty, !isMarkedNotSecret(key) else { return }
+        for copy in found {
+            copy.storage.delete(id: copy.id)
+        }
+        archive.removeEmpty()
+        onSecretAdded?(true)
+    }
+
+    /// Finishes the searches still under way at once, on the main
+    /// thread, so that quitting cannot leave a secret's copy in the
+    /// cleared history to be restored after a relaunch.
+    public func finishPendingArchiveSearches() {
+        let keys = pendingArchiveSearches.keys
+        let includingMarked = pendingSearchesIncludingMarked
+        pendingArchiveSearches = [:]
+        pendingSearchesIncludingMarked = []
+        let archive = archive
+        for key in keys where !isMarkedNotSecret(key) {
+            Self.deleteCopies(of: key, in: archive, includingMarked: includingMarked.contains(key))
+        }
+    }
+
+    @discardableResult
+    nonisolated private static func deleteCopies(
+        of key: String, in archive: ClearedHistory, includingMarked: Bool = false
+    ) -> Bool {
         var deleted = false
-        for old in archive.items() where Self.secretKey(old.item) == key {
+        for old in archive.items() where (includingMarked || !old.item.notSecret) && secretKey(old.item) == key {
             old.clear.storage.delete(id: old.item.id)
             deleted = true
         }
@@ -413,13 +593,13 @@ public struct RestoreResult: Equatable, Sendable {
     /// they have any, else their exact content. The history keeps every
     /// item's text in memory, so this works for saved and archived items
     /// alike.
-    static func secretKey(_ content: ClipContent, hash: String) -> String {
+    nonisolated static func secretKey(_ content: ClipContent, hash: String) -> String {
         guard let string = content.plainString, !string.isEmpty else { return "content:" + hash }
         let digest = SHA256.hash(data: Data(string.utf8))
         return "text:" + digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    static func secretKey(_ item: ClipItem) -> String {
+    nonisolated static func secretKey(_ item: ClipItem) -> String {
         secretKey(item.content, hash: item.contentHash)
     }
 
@@ -465,20 +645,33 @@ public struct RestoreResult: Equatable, Sendable {
     /// it removes from the archive besides what came back is a copy of
     /// something already in the history. An item that could not be
     /// moved stays there too, in its clear, to be restored later. A
-    /// secret in the history never comes back as a saved item: its
-    /// archived copy is deleted instead, even if adding the secret could
-    /// not delete it.
+    /// secret by its content in the history never comes back as a saved
+    /// item: its archived copy is deleted instead, even if adding the
+    /// secret could not delete it. An archived ordinary copy of a secret
+    /// only by its source app comes back, and the secret gives way to it,
+    /// as when it is copied while that item is in the history. Archived
+    /// items are restored as they were saved, never taken for secrets.
     @discardableResult
     public func restoreArchive() -> RestoreResult {
         let archive = archive
-        var seen = Set(items.map(\.contentHash))
-        // An archived copy of a secret is deleted, not restored, even
-        // when it came with other types than the secret did.
-        let secrets = Set(items.filter(\.isSecret).map(Self.secretKey))
+        // Secrets are left out: one only by its source app gives way to
+        // its archived copy, and so does one by content to a copy the
+        // user marked as no secret. Other copies of a secret by content
+        // are deleted below.
+        var seen = Set(items.filter { !$0.isSecret }.map(\.contentHash))
+        // An archived copy of a secret by content is deleted, not
+        // restored, even when it came with other types than the secret did.
+        // So is one whose search is still under way: its secret may have
+        // left the history since.
+        let secrets = Set(items.filter { $0.isSecret && $0.secretByContent }.map(Self.secretKey))
+            .union(pendingArchiveSearches.keys.filter { !isMarkedNotSecret($0) })
         var waiting: [(item: ClipItem, clear: ClearedHistory.Clear)] = []
         // Newest first, so a second copy of the same content is the older.
         for old in archive.items() {
-            if !secrets.contains(Self.secretKey(old.item)), seen.insert(old.item.contentHash).inserted {
+            let key = Self.secretKey(old.item)
+            let isSecretCopy = secrets.contains(key)
+                && (!old.item.notSecret || pendingSearchesIncludingMarked.contains(key))
+            if !isSecretCopy, seen.insert(old.item.contentHash).inserted {
                 waiting.append(old)
             } else {
                 old.clear.storage.delete(id: old.item.id)
@@ -490,33 +683,16 @@ public struct RestoreResult: Equatable, Sendable {
         let room = max(limit - items.lazy.filter { !$0.isSecret }.count, 0)
         var result = RestoreResult(restored: 0, noRoom: 0, failed: 0)
         var saved = 0
-        var addedSecrets = false
-        let now = Date()
         for (item, clear) in waiting {
-            if isUnmarkedToken(item) {
-                // A token cleared before it was taken for one comes back
-                // as what it is now: a secret, in memory only.
-                guard let full = clear.storage.loadContent(id: item.id), full.isComplete else {
-                    result.failed += 1
-                    continue
-                }
-                clear.storage.delete(id: item.id)
-                var secret = item
-                secret.content = full
-                secret.expiresAt = now.addingTimeInterval(Self.secretLifetime)
-                items.append(secret)
-                result.restored += 1
-                addedSecrets = true
-                continue
-            }
             guard saved < room else {
                 result.noRoom += 1
                 continue
             }
             do {
                 try clear.storage.move(id: item.id, to: storage)
+                let key = Self.secretKey(item)
+                items.removeAll { $0.isSecret && Self.secretKey($0) == key }
                 items.append(item)
-                if item.notSecret { notSecrets.insert(Self.secretKey(item)) }
                 result.restored += 1
                 saved += 1
             } catch {
@@ -529,7 +705,6 @@ public struct RestoreResult: Equatable, Sendable {
             items.sort { $0.lastUsedAt > $1.lastUsedAt }
             onChange?()
         }
-        if addedSecrets { onSecretAdded?(true) }
         return result
     }
 

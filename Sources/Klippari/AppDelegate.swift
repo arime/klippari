@@ -128,6 +128,9 @@ import os
             // a note from the last Restore still holds.
             if clearedHistoryChanged { self?.refreshArchive() }
         }
+        store.detectsSecrets = settings.detectSecrets
+        store.masksChosenTexts = settings.maskChosenTexts
+        store.scansClearedHistoryInBackground = true
         if let previous { store.adopt(previous) }
         store.expireArchive(now: Date())
         monitor = ClipboardMonitor(
@@ -146,7 +149,7 @@ import os
         panel.onClearAll = { [weak self] in self?.clearFromPanel() }
         showArchive()
         countUnreadableItems()
-        // Tokens saved by an earlier build are secrets now, timed too.
+        // Secrets taken over from the previous history are timed too.
         scheduleSecretCheck()
         monitor.start()
     }
@@ -160,6 +163,8 @@ import os
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // A secret's copies must not outlive it in the cleared history.
+        store?.finishPendingArchiveSearches()
         if let unsavedRoot {
             try? FileManager.default.removeItem(at: unsavedRoot.deletingLastPathComponent())
         }
@@ -198,6 +203,8 @@ import os
             // A key check left by an earlier key goes with it.
             let key = try ItemCipher.key(stored: KeychainKey.load(), sealedHistoryIn: roots) {
                 KeyCheck.remove(in: folder)
+                // Sealed with a key that is gone, so unreadable either way.
+                MaskedTexts.remove(forItems: items)
                 return try KeychainKey.create()
             }
             cipher = ItemCipher(key: key)
@@ -281,12 +288,15 @@ import os
                 try ItemStorage.removeSealedItems(root)
             }
             KeyCheck.remove(in: folder)
+            MaskedTexts.remove(forItems: items)
         case .wrongKey:
             guard let stored = try KeychainKey.load() else { break }
             for item in ItemStorage.unreadableItems(in: roots, cipher: ItemCipher(key: stored), countingPlain: false) {
                 try FileManager.default.removeItem(at: item)
             }
             KeyCheck.remove(in: folder)
+            // Sealed with the other key, so the keychain's cannot read it.
+            MaskedTexts.remove(forItems: items)
         default:
             break
         }
@@ -448,6 +458,10 @@ import os
                 settings.shortcutUnavailable = true
             }
         }
+        // Turning it off leaves the secrets already in the history to
+        // expire as usual, so a click never writes a password to disk.
+        store.detectsSecrets = settings.detectSecrets
+        store.masksChosenTexts = settings.maskChosenTexts
         if monitor.isPaused != settings.isPaused {
             monitor.isPaused = settings.isPaused
         }
