@@ -672,15 +672,16 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
 
 @Suite struct SecretDetectionTests {
     @Test func knownCredentialFormats() {
-        for credential in [fakeAnthropicKey, fakeOpenAIKey, fakeGitHubToken, fakeAWSKey, fakeSlackToken, fakeJWT, fakePrivateKey] {
-            #expect(Secrets.containsCredential(credential), "\(credential.prefix(8))")
-            #expect(Secrets.containsCredential("export KEY=\(credential)\n"), "\(credential.prefix(8))")
+        for credential in [fakeAnthropicKey, fakeOpenAIKey, fakeGitHubToken, fakeAWSKey, fakeSlackToken, fakeJWT] {
+            #expect(Secrets.isMostlyCredential(credential), "\(credential.prefix(8))")
+            #expect(Secrets.isMostlyCredential("export KEY=\(credential)\n"), "\(credential.prefix(8))")
         }
+        #expect(Secrets.isMostlyCredential(fakePrivateKey))
     }
 
     @Test func moreCredentialFormats() {
         let x = { (n: Int) in String(repeating: "x", count: n) }
-        let credentials = [
+        let credentials: [String] = [
             "sk_" + "live_" + "Ab3" + x(24), // Stripe
             "rk_" + "test_" + "Ab3" + x(24),
             "gl" + "pat-" + x(20), // GitLab
@@ -693,9 +694,15 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
             "xa" + "pp-" + "1-A0123-" + x(10), // Slack app token
             "Authorization: Bearer " + x(30),
             "https://deploy:" + "hunter2-but-longer" + "@example.com/repo.git",
+            "github_" + "pat_" + x(22),
+            "gh" + "o_" + x(36), "gh" + "u_" + x(36), "gh" + "s_" + x(36), "gh" + "r_" + x(36),
+            "AS" + "IA" + String(repeating: "Q", count: 16),
+            "export AWS_SECRET_" + "ACCESS_KEY=" + String(repeating: "aB3/", count: 10),
+            "Aws_Secret_" + "Access_Key: " + String(repeating: "aB3/", count: 10),
+            "AWS_SESSION_" + "TOKEN=" + String(repeating: "IQoJb3JpZ2luX2Vj", count: 7),
         ]
         for credential in credentials {
-            #expect(Secrets.containsCredential(credential), "\(credential.prefix(10))")
+            #expect(Secrets.isMostlyCredential(credential), "\(credential.prefix(10))")
         }
     }
 
@@ -707,7 +714,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
     }
 
     @Test func ordinaryTextIsNotASecret() {
-        let ordinary = [
+        let ordinary: [String] = [
             "Meeting notes: Q4 planning",
             UUID().uuidString,
             String(repeating: "3f9a", count: 16), // a SHA-256 in hex
@@ -723,7 +730,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
             "git rebase --onto main feature~3 feature",
         ]
         for string in ordinary {
-            #expect(!Secrets.containsCredential(string), "\(string)")
+            #expect(!Secrets.isMostlyCredential(string), "\(string)")
         }
     }
 
@@ -757,7 +764,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
             "curl -H 'Authorization: Bearer \(fakeJWT)' https://api.example.com/v1/me",
             fakePrivateKey,
             fakePrivateKey + "\n",
-        ] {
+        ] as [String] {
             #expect(Secrets.reason(for: text(string), frontmostBundleID: nil) == .content, "\(string.prefix(12))")
         }
     }
@@ -771,7 +778,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
             "curl -H 'Authorization: Bearer \(longJWT)' https://api.example.com/v1/me",
             "\(fakeAWSKey)\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
             "\(fakeGitHubToken)\n\n\(fakeAnthropicKey)\n",
-        ] {
+        ] as [String] {
             #expect(Secrets.reason(for: text(string), frontmostBundleID: nil) == .content, "\(string.prefix(12))")
         }
     }
@@ -782,6 +789,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
             "[default]\naws_access_key_id = \(fakeAWSKey)\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
             "# prod token\nexport GH_TOKEN=\(fakeGitHubToken)",
             "// staging\n\(fakeAnthropicKey)",
+            "; staging\n\(fakeAnthropicKey)",
             certificate + "\n" + fakePrivateKey,
             fakePrivateKey.replacingOccurrences(of: "\n", with: " "),
             "# export GH_TOKEN=\(fakeGitHubToken)",
@@ -792,7 +800,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
             "[profile temp]\naws_access_key_id = \(fakeAWSKey)\n"
                 + "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
                 + "aws_session_token = " + String(repeating: "IQoJb3JpZ2luX2Vj", count: 10),
-        ] {
+        ] as [String] {
             #expect(Secrets.reason(for: text(string), frontmostBundleID: nil) == .content, "\(string.prefix(12))")
         }
     }
@@ -803,7 +811,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
             "-----BEGIN RSA " + "PRIVATE KEY-----",
             "# just a comment",
             "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----",
-        ] {
+        ] as [String] {
             #expect(Secrets.reason(for: text(string), frontmostBundleID: nil) == nil, "\(string.prefix(12))")
         }
     }
@@ -817,7 +825,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
             String(repeating: "log ", count: 70) + fakeGitHubToken,
             "12:00:01 " + String(repeating: "x", count: 250) + " " + fakeJWT,
             Array(repeating: "export GH_TOKEN=\(fakeGitHubToken)", count: 6).joined(separator: "\n"),
-        ] {
+        ] as [String] {
             #expect(Secrets.reason(for: text(string), frontmostBundleID: nil) == nil, "\(string.prefix(12))")
         }
     }
@@ -858,13 +866,61 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
     @Test func privateKeyHeaderStaysButAOneLineKeyDoesNot() {
         #expect(Secrets.mask("-----BEGIN OPENSSH PRIVATE KEY-----") == "-----BEGIN OPENSSH PRIVATE KEY-----")
         let oneLine = fakePrivateKey.replacingOccurrences(of: "\n", with: " ")
-        #expect(Secrets.containsCredential(oneLine))
+        #expect(Secrets.isMostlyCredential(oneLine))
         #expect(!Secrets.mask(oneLine).contains("b3BlbnNzaC1rZXktdjEAAAAA"))
     }
 
     @Test func pgpPrivateKeyIsASecret() {
-        #expect(Secrets.containsCredential("-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\nlQOYBF..."))
-        #expect(!Secrets.containsCredential("-----BEGIN PGP PUBLIC KEY BLOCK-----\nmQENBF..."))
+        let body = "\nVersion: GnuPG v2\n\nlQOYBF8xYzABCADc3Rk5Qm\n=Ab12"
+        #expect(Secrets.isMostlyCredential("-----BEGIN PGP " + "PRIVATE KEY BLOCK-----" + body
+            + "\n-----END PGP PRIVATE KEY BLOCK-----"))
+        #expect(!Secrets.isMostlyCredential("-----BEGIN PGP PUBLIC KEY BLOCK-----" + body
+            + "\n-----END PGP PUBLIC KEY BLOCK-----"))
+    }
+
+    @Test func aPrivateKeyCutShortIsASecret() {
+        let header = "-----BEGIN OPENSSH " + "PRIVATE KEY-----"
+        let body = "\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQ\nAAAAAAAAAAEAAAAzAAAAC3NzaC1lZDI1NTE5"
+        for string in [
+            header + body,
+            header + body + "\n",
+            header + "\nb3BlbnNzaC1rZXktdjEAAAAA",
+            "-----BEGIN RSA " + "PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0123\n\nMIIEpAIBAAKCAQEAx7",
+            "-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\n\nlQOYBF8xYzABCADc3Rk5Qm",
+            "# deploy key\n" + header + body,
+            "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----\n" + header + body,
+        ] as [String] {
+            #expect(Secrets.isMostlyCredential(string), "\(string.suffix(12))")
+        }
+        for string in [
+            header,
+            header + "\n",
+            header + "\nb3Bl", // too little of a key to tell
+            header + "\nThe key goes here.",
+            header + "\n...",
+            header + body + "\nSee the docs for more.",
+            "Paste your key:\n" + header + body,
+            "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOC",
+        ] as [String] {
+            #expect(!Secrets.isMostlyCredential(string), "\(string.suffix(12))")
+        }
+        // Its row shows the BEGIN line and dots, none of the key.
+        #expect(Secrets.mask(header) == header)
+        #expect(Secrets.mask("b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQ") == Secrets.dots)
+    }
+
+    @Test func linesAreCountedPastCommentsAndHeaders() {
+        let token = "export GH_TOKEN=\(fakeGitHubToken)"
+        let comments = Array(repeating: "# a note", count: 50).joined(separator: "\n")
+        // Five tokens under any number of comments are a secret; a sixth
+        // line, even a comment holding a token, makes a longer text.
+        let five = Array(repeating: token, count: 5).joined(separator: "\n")
+        #expect(Secrets.isMostlyCredential(comments + "\n" + five))
+        #expect(!Secrets.isMostlyCredential(comments + "\n" + five + "\n# " + token))
+        #expect(!Secrets.isMostlyCredential(five + "\nplain"))
+        // A large source file is not a secret.
+        let source = Array(repeating: "let x = 1 // \(fakeGitHubToken)", count: 10_000).joined(separator: "\n")
+        #expect(!Secrets.isMostlyCredential(source))
     }
 
     @Test func passwordsShowNothing() {

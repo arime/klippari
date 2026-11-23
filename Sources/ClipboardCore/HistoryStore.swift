@@ -118,12 +118,13 @@ public struct RestoreResult: Equatable, Sendable {
     public var detectsSecrets = false
     /// The setting nested under Secrets, 'Always mask chosen texts'. Off
     /// by default. While it and `detectsSecrets` are on, Cmd+S in the
-    /// panel works both ways (`maskAlways`, `keepAsOrdinary`) and new
-    /// copies holding a text in `maskedTexts` are secrets. Off, the list
-    /// is kept but not applied.
+    /// panel can mask an ordinary row's text always (`maskAlways`) and
+    /// new copies holding a text in `maskedTexts` are secrets. Off, the
+    /// list is kept but not applied.
     public var masksChosenTexts = false
 
-    /// Whether Cmd+S in the panel does anything.
+    /// Whether Cmd+S in the panel can mask an ordinary row's text
+    /// always. Keeping a secret as an ordinary item works regardless.
     public var secretShortcutEnabled: Bool { detectsSecrets && masksChosenTexts }
 
     /// Where `maskedTexts` is kept, sealed (see `MaskedTexts`).

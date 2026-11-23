@@ -69,9 +69,10 @@ import Observation
     }
 
     /// Whether Cmd+S can keep the selected secret as an ordinary item:
-    /// only while Secrets and Always mask chosen texts are on.
+    /// always, whatever the settings, so a wrong guess can be undone
+    /// even after Secrets was turned off.
     public var selectionCanBeUnmasked: Bool {
-        store.secretShortcutEnabled && selectionIsSecret
+        selectionIsSecret
     }
 
     /// Whether Cmd+S can mask the selected row always: an ordinary item
@@ -81,13 +82,13 @@ import Observation
         return !(item.content.plainString ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// Cmd+S, while Secrets and Always mask chosen texts are on: keeps
-    /// the selected secret as an ordinary item, which is saved, shown in
-    /// full and stays selected; or masks the selected ordinary item's
-    /// text always. Returns false when it does neither.
+    /// Cmd+S: keeps the selected secret as an ordinary item, which is
+    /// saved, shown in full and stays selected; or, while Secrets and
+    /// Always mask chosen texts are on, masks the selected ordinary
+    /// item's text always. Returns false when it does neither.
     @discardableResult
     public func toggleSelectedSecret() -> Bool {
-        guard let selectedID, store.secretShortcutEnabled else { return false }
+        guard let selectedID else { return false }
         if selectionIsSecret {
             store.keepAsOrdinary(selectedID)
             // A notice from masking it no longer holds.

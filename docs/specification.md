@@ -65,12 +65,21 @@ without the mouse.
   format. PEM blocks are set aside first: a copy holding a whole
   private key (BEGIN to END, even collapsed onto one line) and besides
   its PEM blocks (a certificate chain, say) only what the rule below
-  accepts, is a secret. Then blank lines, and comment lines (`#`, `//`,
+  accepts, is a secret. So is one holding a private key cut short, its
+  END line missing, when the key runs to the end of the copy: its BEGIN
+  line, any armor headers (`Proc-Type: …`, `Version: …`), then only
+  base64 lines, the first at least 16 characters long. A BEGIN line
+  followed by nothing or by prose is not one. Then blank lines, and comment lines (`#`, `//`,
   `;`) and section headers (`[default]`) that hold no credential
   themselves, are set aside: a commented-out token still counts. What is left
   must be at most 5 lines that each hold a credential and are either at
   most 256 characters long or at least 80% credential, with at least
-  one such line unless a private key was set aside: `export
+  one such line unless a private key was set aside. Lines are counted
+  before any is matched against the formats, and comment lines are
+  looked at only once the rest are few, so a large copy (a source file)
+  is turned down after its sixth line. A copy with more than 5 such
+  lines, a `.env` file with six tokens say, is a longer text and is
+  saved in full. Examples of secrets: `export
   GH_TOKEN=…`, a database URL with its password, a `curl` line with a
   `Bearer` header, a bare 1000-character JWT, an AWS access key ID with
   its named secret key and session token (a `~/.aws/credentials`
@@ -155,9 +164,11 @@ without the mouse.
   the source app and the time left.
 - The filter matches only what a secret's row shows, and the word
   'secret'. The image preview never shows a secret.
-- Cmd+S works only while Secrets and the nested **Always mask chosen
-  texts** setting are on; otherwise it beeps, and masked texts are not
-  applied to new copies (the list is kept).
+- Cmd+S on a selected secret works whatever the settings, so a wrong
+  guess can always be undone, even after Secrets was turned off. On an
+  ordinary item it works only while Secrets and the nested **Always
+  mask chosen texts** setting are on; otherwise it beeps, and masked
+  texts are not applied to new copies (the list is kept).
 - Cmd+S on a selected secret keeps it as an ordinary item: it is saved
   and shown in full, marked as no secret, and copies of the same text
   are not taken for secrets again while that item is in the history,
@@ -166,8 +177,7 @@ without the mouse.
   counts. A cleared copy keeps its mark: no secret's search deletes it
   from the cleared history, and Restore brings it back marked, the
   secret with its text giving way. Texts masked always that
-  it contains are no longer masked. While Cmd+S works and a secret is
-  selected, the
+  it contains are no longer masked. While a secret is selected, the
   footer's 'Quick paste' hint gives way to 'Not a secret'.
 - Cmd+S on a selected ordinary item with text masks
   that text always: the whole text, trimmed, joins the masked texts,

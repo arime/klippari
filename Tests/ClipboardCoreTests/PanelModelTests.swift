@@ -37,17 +37,29 @@ import ClipboardCore
         store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .content, now: at(500))
         model.open()
         #expect(model.selectionIsSecret)
-        // Cmd+S does nothing until Always mask chosen texts is on.
-        #expect(!model.selectionCanBeUnmasked)
-        #expect(!model.toggleSelectedSecret())
-        store.detectsSecrets = true
-        store.masksChosenTexts = true
+        // With Secrets off (turned off after the secret came) and Always
+        // mask chosen texts off, Cmd+S still undoes a wrong guess.
+        #expect(!store.detectsSecrets && !store.masksChosenTexts)
         #expect(model.selectionCanBeUnmasked)
         #expect(titles(model) == [Secrets.dots, "a"])
         let id = model.selectedID
-        model.toggleSelectedSecret()
+        #expect(model.toggleSelectedSecret())
         #expect(!model.selectionIsSecret)
         #expect(model.selectedID == id)
+        #expect(titles(model) == ["hunter2-but-longer", "a"])
+    }
+
+    @Test func cmdSUnmasksWithSecretsOnAlone() {
+        let model = makeModel("a")
+        store.detectsSecrets = true
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .sourceApp, now: at(500))
+        model.open()
+        #expect(model.selectionCanBeUnmasked)
+        #expect(!model.selectionCanBeMasked)
+        #expect(model.toggleSelectedSecret())
+        #expect(titles(model) == ["hunter2-but-longer", "a"])
+        // An ordinary row cannot be masked without the nested setting.
+        #expect(!model.toggleSelectedSecret())
         #expect(titles(model) == ["hunter2-but-longer", "a"])
     }
 
