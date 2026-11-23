@@ -30,7 +30,10 @@ public enum Secrets {
         /// skipped when none is there: most copies hold no credential.
         let anchors: [[UInt8]]
         /// Whether the anchors are looked for ignoring ASCII case, as
-        /// the regex is. They are then given in small letters.
+        /// the regex is. They are then given in small letters. The regex
+        /// also folds a few non-ASCII letters (the Kelvin sign as 'k',
+        /// the long s as 's'); a copy spelling a variable name with
+        /// those is not looked at, which no real copy does.
         let ignoringCase: Bool
         /// Whether the mask keeps the last few characters, to tell two
         /// keys apart. Not for a password, of which nothing shows.
@@ -217,20 +220,19 @@ public enum Secrets {
         var lines: [String] = []
         var comments: [(line: String, range: NSRange)] = []
         var tooMany = false
-        nsText.enumerateSubstrings(
-            in: NSRange(location: 0, length: nsText.length), options: [.byLines]
-        ) { substring, range, _, stop in
-            let line = (substring ?? "").trimmingCharacters(in: .whitespaces)
-            guard !line.isEmpty else { return }
+        forEachLine(in: text) { range in
+            let line = nsText.substring(with: range).trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty else { return true }
             if isCommentOrHeader(line) {
                 comments.append((line, range))
             } else {
                 lines.append(line)
                 if lines.count > mostCredentialLines {
                     tooMany = true
-                    stop.pointee = true
+                    return false
                 }
             }
+            return true
         }
         if tooMany { return false }
         // A comment that holds a credential itself, as a commented-out
@@ -256,19 +258,42 @@ public enum Secrets {
         return lines.allSatisfy(isCredentialLine)
     }
 
+    /// Calls `body` with each line's range in UTF-16 units, until it
+    /// returns false. Lines end where `Character.isNewline` says, as the
+    /// row's lines do: LF, CR, VT, FF, NEL, and the line and paragraph
+    /// separators. CRLF gives an empty line between, which callers skip.
+    private static func forEachLine(in text: String, _ body: (NSRange) -> Bool) {
+        let units = Array(text.utf16)
+        var start = 0
+        var index = 0
+        while index < units.count {
+            switch units[index] {
+            case 0x0A, 0x0B, 0x0C, 0x0D, 0x85, 0x2028, 0x2029:
+                guard body(NSRange(location: start, length: index - start)) else { return }
+                index += 1
+                start = index
+            default:
+                index += 1
+            }
+        }
+        if start < units.count { _ = body(NSRange(location: start, length: units.count - start)) }
+    }
+
     /// A PEM block, with its label as group 1.
     private static let pemBlock = try! NSRegularExpression(
         pattern: #"-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----"#
     )
 
-    /// A private key with no END line, to the end of the copy: its BEGIN
-    /// line, any armor headers (`Proc-Type: …`, `Version: …`), then
-    /// nothing but base64 lines, the first at least 16 characters long.
-    /// A BEGIN line alone, or one followed by prose, is not one.
+    /// A private key cut short, to the end of the copy: its BEGIN line,
+    /// any armor headers (`Proc-Type: …`, `Version: …`), then nothing
+    /// but base64 lines, the first at least 16 characters long, and at
+    /// most the start of its END line (a selection that stopped a dash
+    /// short). A BEGIN line alone, or one followed by prose, is not one.
     private static let truncatedPrivateKey = try! NSRegularExpression(
         pattern: #"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----[ \t]*\r?\n"#
             + #"(?:[ \t]*[A-Za-z][A-Za-z0-9-]*:[^\r\n]*\r?\n)*(?:[ \t]*\r?\n)?"#
-            + #"(?=[ \t]*[A-Za-z0-9+/=]{16})(?:[ \t]*[A-Za-z0-9+/=]+[ \t]*(?:\r?\n|$))+\s*\z"#
+            + #"(?=[ \t]*[A-Za-z0-9+/=]{16})(?:[ \t]*[A-Za-z0-9+/=]+[ \t]*(?:\r?\n|$))+"#
+            + #"(?:[ \t]*-[-A-Z0-9 ]*)?\s*\z"#
     )
 
     /// A comment line (`#`, `//`, `;`) or an INI-style section header

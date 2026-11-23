@@ -27,10 +27,18 @@ import Observation
     /// again, masked; nothing else about an item changes its row.
     private var presentations: [UUID: (isSecret: Bool, row: RowPresentation)] = [:]
 
+    /// The row Cmd+S just changed, kept in the list though it may no
+    /// longer match the filter (a secret's row matches 'secret', its
+    /// text in full does not), so that it stays selected and a second
+    /// Cmd+S acts on it again, never on the next row. Let go when the
+    /// filter changes, the selection moves or the panel opens.
+    private var pinnedID: UUID?
+
     /// Typing in the panel edits this; the first match becomes selected.
     public var query: String = "" {
         didSet {
             guard query != oldValue else { return }
+            pinnedID = nil
             rebuild(keepingSelection: false)
         }
     }
@@ -75,6 +83,7 @@ import Observation
     @discardableResult
     public func keepSelectedAsOrdinary() -> Bool {
         guard let selectedID, selectionIsSecret else { return false }
+        pinnedID = selectedID
         store.keepAsOrdinary(selectedID)
         return true
     }
@@ -94,17 +103,22 @@ import Observation
     public func open() {
         notice = nil
         noticeLink = nil
+        pinnedID = nil
         query = ""
         rebuild(keepingSelection: false)
     }
 
     public func moveSelection(by delta: Int) {
         guard let current = rows.firstIndex(where: { $0.id == selectedID }) else {
+            unpin()
             selectedID = rows.first?.id
             return
         }
-        let target = min(max(current + delta, 0), rows.count - 1)
-        selectedID = rows[target].id
+        // The target is found among the rows as shown, before the row
+        // Cmd+S changed leaves them.
+        let target = rows[min(max(current + delta, 0), rows.count - 1)].id
+        unpin()
+        if rows.contains(where: { $0.id == target }) { selectedID = target }
     }
 
     /// The item Cmd+n pastes, counting within the visible (filtered) rows.
@@ -118,10 +132,20 @@ import Observation
     /// among the visible rows is ignored.
     public func select(_ id: UUID) {
         guard rows.contains(where: { $0.id == id }) else { return }
+        if id != selectedID { unpin() }
         selectedID = id
     }
 
+    /// Lets go of the row Cmd+S changed: it leaves the list if it no
+    /// longer matches the filter.
+    private func unpin() {
+        guard pinnedID != nil else { return }
+        pinnedID = nil
+        rebuild(keepingSelection: true)
+    }
+
     public func deleteSelected() {
+        pinnedID = nil
         guard let index = rows.firstIndex(where: { $0.id == selectedID }) else { return }
         let removed = rows[index].id
         if index + 1 < rows.count {
@@ -160,7 +184,7 @@ import Observation
                 presentation = RowPresentation(item)
                 presentations[item.id] = (item.isSecret, presentation)
             }
-            guard presentation.matches(query) else { continue }
+            guard presentation.matches(query) || item.id == pinnedID else { continue }
             built.append(Row(
                 id: item.id,
                 number: built.count < 9 ? built.count + 1 : nil,

@@ -51,6 +51,48 @@ import ClipboardCore
         #expect(titles(model) == ["hunter2-but-longer", "a"])
     }
 
+    @Test func cmdSUnderAFilterStaysOnItsRow() {
+        let model = makeModel("a")
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: .content, now: at(500))
+        store.add(text("correct-horse-battery"), sourceApp: "Passwords", secret: .content, now: at(501))
+        model.open()
+        model.query = "secret"
+        #expect(titles(model) == [Secrets.dots, Secrets.dots])
+        let id = model.selectedID
+        #expect(model.keepSelectedAsOrdinary())
+        // In full it no longer matches 'secret', yet it stays, selected,
+        // so a second Cmd+S cannot unmask the other secret.
+        #expect(model.selectedID == id)
+        #expect(titles(model) == ["correct-horse-battery", Secrets.dots])
+        #expect(!model.keepSelectedAsOrdinary())
+        #expect(titles(model) == ["correct-horse-battery", Secrets.dots])
+        // Moving on lets it go.
+        model.moveSelection(by: 1)
+        #expect(titles(model) == [Secrets.dots])
+        #expect(model.selectionIsSecret)
+    }
+
+    @Test func movingOffTheRowCmdSChangedLandsOnItsNeighbour() {
+        let model = makeModel("a")
+        let names = ["first-pass-word", "second-pass-word", "third-pass-word", "fourth-pass-word"]
+        for (index, name) in names.enumerated() {
+            store.add(text(name), sourceApp: "Passwords", secret: .content, now: at(500 + Double(index)))
+        }
+        model.open()
+        model.query = "secret"
+        // fourth, third, second, first: Cmd+S on third, then down.
+        model.moveSelection(by: 1)
+        #expect(model.keepSelectedAsOrdinary())
+        #expect(titles(model) == [Secrets.dots, "third-pass-word", Secrets.dots, Secrets.dots])
+        model.moveSelection(by: 1)
+        #expect(titles(model).count == 3)
+        #expect(model.selectedItem?.content == text("second-pass-word"))
+        // Cmd+S on second, then up: fourth, not first.
+        #expect(model.keepSelectedAsOrdinary())
+        model.moveSelection(by: -1)
+        #expect(model.selectedItem?.content == text("fourth-pass-word"))
+    }
+
     @Test func cmdSUnmasksWithSecretsOn() {
         let model = makeModel("a")
         store.detectsSecrets = true

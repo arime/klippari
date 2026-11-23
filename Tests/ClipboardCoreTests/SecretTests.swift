@@ -773,6 +773,10 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
             "-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\n\nlQOYBF8xYzABCADc3Rk5Qm",
             "# deploy key\n" + header + body,
             "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIU\n-----END CERTIFICATE-----\n" + header + body,
+            header + body + "\n-----END OPENSSH PRIVATE KEY----", // a dash short
+            header + body + "\n-----END OPENSSH PRIVATE KE",
+            header + body + "\n-----",
+            (header + body).replacingOccurrences(of: "\n", with: "\r\n") + "\r\n",
         ] as [String] {
             #expect(Secrets.isMostlyCredential(string), "\(string.suffix(12))")
         }
@@ -791,6 +795,16 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         // Its row shows the BEGIN line and dots, none of the key.
         #expect(Secrets.mask(header) == header)
         #expect(Secrets.mask("b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQ") == Secrets.dots)
+    }
+
+    @Test func everyKindOfLineBreakSeparatesLines() {
+        let token = "export GH_TOKEN=\(fakeGitHubToken)"
+        for separator in ["\n", "\r", "\r\n", "\u{0B}", "\u{0C}", "\u{85}", "\u{2028}", "\u{2029}"] {
+            let five = Array(repeating: token, count: 5).joined(separator: separator)
+            #expect(Secrets.isMostlyCredential(five), "\(separator.unicodeScalars.map(\.value))")
+            #expect(!Secrets.isMostlyCredential(five + separator + token), "\(separator.unicodeScalars.map(\.value))")
+            #expect(!Secrets.isMostlyCredential("page one" + separator + token), "\(separator.unicodeScalars.map(\.value))")
+        }
     }
 
     @Test func linesAreCountedPastCommentsAndHeaders() {

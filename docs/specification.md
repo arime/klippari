@@ -67,8 +67,9 @@ without the mouse.
   accepts, is a secret. So is one holding a private key cut short, its
   END line missing, when the key runs to the end of the copy: its BEGIN
   line, any armor headers (`Proc-Type: …`, `Version: …`), then only
-  base64 lines, the first at least 16 characters long. A BEGIN line
-  followed by nothing or by prose is not one. Then blank lines, and comment lines (`#`, `//`,
+  base64 lines, the first at least 16 characters long, and at most the
+  start of its END line. A BEGIN line followed by nothing or by prose
+  is not one. Then blank lines, and comment lines (`#`, `//`,
   `;`) and section headers (`[default]`) that hold no credential
   themselves, are set aside: a commented-out token still counts. What is left
   must be at most 5 lines that each hold a credential and are either at
@@ -76,7 +77,9 @@ without the mouse.
   one such line unless a private key was set aside. Lines are counted
   before any is matched against the formats, and comment lines are
   looked at only once the rest are few, so a large copy (a source file)
-  is turned down after its sixth line. A copy with more than 5 such
+  is turned down at its sixth line that is not blank, a comment or a
+  header. Lines end where a row's lines do: at LF, CR, CRLF, VT, FF,
+  NEL and the Unicode line and paragraph separators. A copy with more than 5 such
   lines, a `.env` file with six tokens say, is a longer text and is
   saved in full. Examples of secrets: `export
   GH_TOKEN=…`, a database URL with its password, a `curl` line with a
@@ -508,8 +511,7 @@ instead.
   version from the app's `Info.plist`.
 
 History size, shortcut, panel position and the panel options,
-Secrets among them, are stored in the app's preferences; the masked
-texts are not.
+Secrets among them, are stored in the app's preferences.
 
 ## App icon
 
