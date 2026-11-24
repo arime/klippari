@@ -5,6 +5,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var settings: Settings
+    /// The app's version, from its Info.plist. Nil when the binary runs
+    /// outside an app bundle, and then the line is left out.
+    var version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     @State private var startsAtLogin = LoginItem.isEnabled
     @State private var loginError: String?
     @State private var shortcutRejected = false
@@ -28,6 +31,20 @@ struct SettingsView: View {
     }
 
     var body: some View {
+        VStack(spacing: 16) {
+            form
+            if let version {
+                Text("Klippari \(version)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(20)
+        .frame(width: 420)
+        .onAppear { startsAtLogin = LoginItem.isEnabled }
+    }
+
+    private var form: some View {
         Form {
             LabeledContent("Keep last") {
                 HStack(spacing: 6) {
@@ -116,9 +133,6 @@ struct SettingsView: View {
                 .padding(.top, 10)
             }
         }
-        .padding(20)
-        .frame(width: 420)
-        .onAppear { startsAtLogin = LoginItem.isEnabled }
     }
 
     private func setStartsAtLogin(_ on: Bool) {

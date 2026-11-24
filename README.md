@@ -84,7 +84,8 @@ The menu bar icon has:
   text), **Position** (open next to
   the text field being typed in, or else the pointer) and **Images**
   (enlarge the selected image beside the panel). After a clear,
-  **Cleared history** offers Restore and Delete.
+  **Cleared history** offers Restore and Delete. The app's version is
+  at the bottom.
 - **Quit Klippari**.
 
 To change the shortcut, select the field in Settings, press Return and

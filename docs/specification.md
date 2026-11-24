@@ -366,6 +366,8 @@ instead.
   was restored, and suggests raising Keep last. Items that could not
   be moved back are counted on that line too, as still in the cleared
   history. The row is shown only while there is a cleared history.
+- **Version**: a grey line at the bottom, 'Klippari 1.1.0', with the
+  version from the app's `Info.plist`.
 
 History size, shortcut, panel position and the panel options are
 stored in the app's preferences.

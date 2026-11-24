@@ -159,6 +159,8 @@ Expected behaviour is defined in `specification.md`.
       refused, and a failed registration keeps the previous shortcut.
 - [ ] A changed shortcut takes effect at once and survives a relaunch.
 - [ ] Settings can be operated with the keyboard alone.
+- [ ] The bottom of Settings shows the version set in
+      `Resources/Info.plist`.
 
 ## Installation
 
