@@ -17,10 +17,12 @@ copied and lets you paste any of them easily from the keyboard.</p>
 ## What it does
 
 - Records anything you copy regardless of content type: text, styled text, images, files
-- Keeps the last 50 items by default, across restarts
+- Keeps the last 50 items by default, across restarts, encrypted on
+  disk
 - Never records what a password manager marks as concealed, nor
   anything over 20 MB
 - Pastes an item as it was copied, or as plain text
+- Keeps a cleared history for 24 hours, so a clear can be undone
 - Follows the system light or dark appearance
 - Lives in the menu bar and starts at login
 
@@ -78,7 +80,8 @@ The menu bar icon has:
 - **Reset Panel Position**: put the panel back in the middle.
 - **Settings…**: history size (5 to 500 items), the shortcut, start at
   login, and three panel options, all off by default: **Mouse** (point
-  at a row to select it, click to paste), **Position** (open next to
+  at a row to select it, click to paste, Shift+click to paste as plain
+  text), **Position** (open next to
   the text field being typed in, or else the pointer) and **Images**
   (enlarge the selected image beside the panel). After a clear,
   **Cleared history** offers Restore and Delete.
@@ -211,10 +214,21 @@ iconutil -c icns build/AppIcon.iconset -o Resources/AppIcon.icns
 ```
 
 The screenshots above are rendered by the app from sample items, so
-they contain no real clipboard content:
+they contain no real clipboard content. After `swift build`:
+
+```bash
+.build/debug/Klippari --snapshot docs/images/panel-light.png
+```
 
 ```bash
 .build/debug/Klippari --snapshot docs/images/panel-dark.png dark
+```
+
+The image is as tall as a panel of nine rows. Cut the empty space
+under the six sample rows:
+
+```bash
+sips -c 1000 1520 --cropOffset 1 0 docs/images/panel-light.png docs/images/panel-dark.png
 ```
 
 ## Layout
