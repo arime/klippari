@@ -13,7 +13,7 @@ without the mouse.
 ## Platform
 
 - macOS 15 or later. Swift 6 language mode. No third-party dependencies.
-- Bundle identifier `com.arime.Klippari`, version 1.0.
+- Bundle identifier `com.arime.Klippari`, version 1.1.
 - A background app: no Dock icon, a menu bar icon only.
 - Not sandboxed, because pasting into other apps requires synthesizing
   keystrokes.

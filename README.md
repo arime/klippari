@@ -147,7 +147,7 @@ This writes `build/Klippari-<version>.dmg`, signed, notarized and
 stapled. Tag the commit and publish it:
 
 ```bash
-gh release create v1.0.0 build/Klippari-1.0.0.dmg --title 'Klippari 1.0.0'
+gh release create v1.1.0 build/Klippari-1.1.0.dmg --title 'Klippari 1.1.0'
 ```
 
 ## Permissions
