@@ -139,5 +139,8 @@ struct Shortcut: Codable, Equatable {
         openAtPointer = defaults.bool(forKey: "openAtPointer")
         magnifyImages = defaults.bool(forKey: "magnifyImages")
         detectSecrets = defaults.bool(forKey: "detectSecrets")
+        // Left by development builds of the dropped 'Always mask chosen
+        // texts'; nothing reads it.
+        defaults.removeObject(forKey: "maskChosenTexts")
     }
 }
