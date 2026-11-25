@@ -5,6 +5,9 @@ import AppKit
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let settings: Settings
     private let pauseItem = NSMenuItem(title: "Pause Capture", action: #selector(togglePause), keyEquivalent: "")
+    private let presentationItem = NSMenuItem(
+        title: "Presentation Mode", action: #selector(togglePresentation), keyEquivalent: ""
+    )
 
     private let encryptingItem = NSMenuItem(title: "Encrypting the saved history…", action: nil, keyEquivalent: "")
     private let unsavedItem = NSMenuItem(title: "History isn't being saved", action: nil, keyEquivalent: "")
@@ -77,6 +80,9 @@ import AppKit
         menu.addItem(unreadableSeparator)
         pauseItem.target = self
         menu.addItem(pauseItem)
+        presentationItem.target = self
+        presentationItem.toolTip = "Hide what was copied in the panel, for streaming or recording the screen"
+        menu.addItem(presentationItem)
         menu.addItem(item("Clear History", #selector(clearHistory)))
         menu.addItem(item("Reset Panel Position", #selector(resetPanelPosition)))
         menu.addItem(.separator())
@@ -90,7 +96,7 @@ import AppKit
     /// The app icon's three rows, as a menu bar glyph. It is a template
     /// image, so macOS tints it for light and dark menu bars; that rules
     /// out the blue, and the top row stands out by opacity instead.
-    static func makeIcon() -> NSImage {
+    static func makeIcon(presenting: Bool = false) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { _ in
             let rowWidth: CGFloat = 14
@@ -104,10 +110,25 @@ import AppKit
                 NSColor.black.withAlphaComponent(alpha).setFill()
                 NSBezierPath(roundedRect: row, xRadius: 1.2, yRadius: 1.2).fill()
             }
+            if presenting {
+                // A slash across the rows, as on an eye that is shut: the
+                // contents are hidden.
+                let slash = NSBezierPath()
+                slash.move(to: NSPoint(x: 2.5, y: 2.5))
+                slash.line(to: NSPoint(x: size.width - 2.5, y: size.height - 2.5))
+                slash.lineWidth = 3.5
+                slash.lineCapStyle = .round
+                NSGraphicsContext.current?.compositingOperation = .clear
+                slash.stroke()
+                NSGraphicsContext.current?.compositingOperation = .sourceOver
+                slash.lineWidth = 1.6
+                NSColor.black.setStroke()
+                slash.stroke()
+            }
             return true
         }
         image.isTemplate = true
-        image.accessibilityDescription = "Klippari"
+        image.accessibilityDescription = presenting ? "Klippari, Presentation Mode" : "Klippari"
         return image
     }
 
@@ -131,6 +152,11 @@ import AppKit
         unsavedReasonItem.toolTip = unsaved?.detail
         statusItem.button?.appearsDisabled = settings.isPaused
         pauseItem.title = settings.isPaused ? "Resume Capture" : "Pause Capture"
+        presentationItem.state = settings.presentationMode ? .on : .off
+        if shownPresenting != settings.presentationMode {
+            shownPresenting = settings.presentationMode
+            statusItem.button?.image = Self.makeIcon(presenting: shownPresenting)
+        }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -141,6 +167,13 @@ import AppKit
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.target = self
         return item
+    }
+
+    /// Which icon the button shows, so it is drawn again only on a change.
+    private var shownPresenting = false
+
+    @objc private func togglePresentation() {
+        settings.presentationMode.toggle()
     }
 
     @objc private func togglePause() {

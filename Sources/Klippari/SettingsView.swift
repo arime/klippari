@@ -106,6 +106,22 @@ struct SettingsView: View {
 
             SettingsRow("Images") {
                 Toggle("Enlarge the selected image", isOn: $settings.magnifyImages)
+                    // Presentation Mode shows no image; the setting
+                    // comes back when it is turned off.
+                    .disabled(settings.presentationMode)
+            }
+
+            SettingsRow("Presentation") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Hide what was copied in the panel", isOn: $settings.presentationMode)
+                    if settings.presentationMode {
+                        Text("For streaming or recording the screen. Rows show only what kind of item each is (with its size or line count), its app, its age and a colour. Tap ⌥, then hold it, to peek at the selected row. Nothing stored changes.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.leading, 20)
+                    }
+                }
             }
 
             SettingsRow("Secrets") {

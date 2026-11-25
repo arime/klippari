@@ -148,6 +148,35 @@ Expected behaviour is defined in `specification.md`.
 
 ## Menu bar and settings
 
+- [ ] Presentation Mode in the menu gets a checkmark, a slash crosses
+      the menu bar icon, and Settings' Presentation toggle follows. The
+      panel then shows only kinds ('Text · 3 lines', 'Link',
+      'File · pdf · 2 MB', 'Folder', 'Image …', 'Secret'), apps, ages
+      and colours: no text, file name, thumbnail or enlarged image, and
+      a secret shows no prefix or last characters.
+- [ ] A row keeps its colour when copied again and moved to the top, and
+      when deleted and copied again; after a relaunch the colours are
+      likely to differ.
+- [ ] Tapping Option, then holding it, shows the first characters of the
+      selected row only; letting go hides them. Holding Option alone,
+      however long, does not. Another modifier, an arrow or any other
+      key ends the peek, and so does moving the pointer to another row
+      with Mouse on.
+- [ ] On a Finnish or German layout, typing @ or { in the filter shows
+      no peek: after resting on Option for a second, and after tapping
+      Option once and typing @ straight away.
+- [ ] Two secrets show the same grey swatch with a lock.
+- [ ] A file row shows its size a moment after the mode is turned on. A
+      file copied from a network share, with the share then
+      disconnected, shows its type without a size, and turning
+      Presentation Mode on does not stall.
+- [ ] A folder shows as 'Folder'; a file named 'Clients.AcmeMerger'
+      shows as 'File' with no type.
+- [ ] Typing a word from a hidden text in the filter finds nothing;
+      typing the app's name finds its rows.
+- [ ] Return pastes the selected row in full, as usual.
+- [ ] Quit and relaunch: Presentation Mode is still on.
+
 - [ ] The menu bar icon shows in light and dark menu bars and dims
       while capture is paused.
 - [ ] Pause stops capture, and resume does not record what was copied

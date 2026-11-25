@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Observation
 
@@ -24,8 +25,55 @@ import Observation
     private let now: () -> Date
     /// Rows worked out before, by item. An item keeps its id when it is
     /// copied again as a secret, and its row must then be worked out
-    /// again, masked; nothing else about an item changes its row.
-    private var presentations: [UUID: (isSecret: Bool, row: RowPresentation)] = [:]
+    /// again, masked; so must every row when Presentation Mode turns on
+    /// or off. Nothing else about an item changes its row.
+    private var presentations: [UUID: (isSecret: Bool, hidden: Bool, row: RowPresentation)] = [:]
+
+    /// Presentation Mode: rows show what kind of item each is, not what
+    /// it holds, for streaming or recording the screen. Nothing stored
+    /// changes.
+    public var hidesContents = false {
+        didSet {
+            guard hidesContents != oldValue else { return }
+            peeking = false
+            // Sizes read in an earlier spell may be out of date.
+            fileSizes = [:]
+            sizeGeneration += 1
+            // With a filter typed the selected row may stop matching: the
+            // first match is selected then, as when the filter changes.
+            rebuild(keepingSelection: true, elseFirst: true)
+        }
+    }
+
+    /// True while the user peeks in Presentation Mode: the selected row
+    /// shows the first few characters of its text. Ends when the
+    /// selection moves, however it moves, so a peek never runs down
+    /// the list.
+    public var peeking = false
+
+    /// Total sizes of copied files, by content hash, read off the main
+    /// thread: a network share that is gone can take long to answer.
+    /// An entry is nil while it cannot be read.
+    private var fileSizes: [String: Int64?] = [:]
+    private var sizesBeingRead: Set<String> = []
+    /// Set while a rebuild for sizes that came in is waiting: answers
+    /// arriving together cost one rebuild, not one each.
+    private var sizeRebuildPending = false
+    /// Bumped when the sizes are let go, so a late answer is ignored.
+    private var sizeGeneration = 0
+
+    /// The key behind the rows' markers, made afresh each launch, so that
+    /// nobody can work back from a marker to what the row holds. Shared
+    /// by every panel model built in a run (Try Again, Reset Saved
+    /// History), so a row keeps its colour until the app quits.
+    private static let markerKey = SymmetricKey(size: .bits256)
+
+    /// What the selected row shows in place of its title while the user
+    /// peeks; nil for any other row, and when not peeking.
+    public func peek(for row: Row) -> String? {
+        guard hidesContents, peeking, row.id == selectedID else { return nil }
+        return row.presentation.peek
+    }
 
     /// The row Cmd+S just changed, kept in the list though it may no
     /// longer match the filter (a secret's row matches 'secret', its
@@ -44,7 +92,9 @@ import Observation
     }
 
     public private(set) var rows: [Row] = []
-    public private(set) var selectedID: UUID?
+    public private(set) var selectedID: UUID? {
+        didSet { if selectedID != oldValue, peeking { peeking = false } }
+    }
 
     /// Something wrong that lasts, such as the history not being saved.
     /// Shown in the footer in place of the key hints on every open,
@@ -68,6 +118,13 @@ import Observation
             return "\(rows.count) of \(total)"
         }
         return total == 1 ? "1 item" : "\(total) items"
+    }
+
+    /// True when peeking would show something: in Presentation Mode, on
+    /// a selected row with characters to peek at (not an image or a
+    /// secret).
+    public var selectionCanPeek: Bool {
+        hidesContents && rows.first { $0.id == selectedID }?.presentation.peek != nil
     }
 
     /// Whether the selected row is a secret, which Cmd+S can keep as an
@@ -104,6 +161,7 @@ import Observation
         notice = nil
         noticeLink = nil
         pinnedID = nil
+        peeking = false
         query = ""
         rebuild(keepingSelection: false)
     }
@@ -169,7 +227,11 @@ import Observation
         return .clearedQuery
     }
 
-    private func rebuild(keepingSelection: Bool) {
+    /// Works the rows out again. With `keepingSelection` the selected
+    /// row stays selected if it is still listed; if it is not, the row
+    /// now in its place is selected, or with `elseFirst` the first row,
+    /// as when the filter changes.
+    private func rebuild(keepingSelection: Bool, elseFirst: Bool = false) {
         let items = store.items
         let liveIDs = Set(items.map(\.id))
         presentations = presentations.filter { liveIDs.contains($0.key) }
@@ -177,12 +239,19 @@ import Observation
         let date = now()
         var built: [Row] = []
         for item in items {
-            let presentation: RowPresentation
-            if let cached = presentations[item.id], cached.isSecret == item.isSecret {
+            var presentation: RowPresentation
+            if let cached = presentations[item.id], cached.isSecret == item.isSecret, cached.hidden == hidesContents {
                 presentation = cached.row
             } else {
-                presentation = RowPresentation(item)
-                presentations[item.id] = (item.isSecret, presentation)
+                presentation = RowPresentation(item, hidingContents: hidesContents, markerKey: Self.markerKey)
+                presentations[item.id] = (item.isSecret, hidesContents, presentation)
+            }
+            if hidesContents, !presentation.sizedFiles.isEmpty {
+                if let size = fileSizes[item.contentHash] {
+                    if let size { presentation = presentation.withFileSize(size) }
+                } else {
+                    readFileSize(presentation.sizedFiles, hash: item.contentHash)
+                }
             }
             guard presentation.matches(query) || item.id == pinnedID else { continue }
             built.append(Row(
@@ -202,11 +271,44 @@ import Observation
         }
         // The selected row went away by itself (a secret whose time ran
         // out): the row now in its place is selected, as after a delete,
-        // so that Return does not paste the newest item instead.
-        if keepingSelection, let oldIndex, !built.isEmpty {
+        // so that Return does not paste the newest item instead. Not when
+        // the mode changed the rows (`elseFirst`).
+        if keepingSelection, !elseFirst, let oldIndex, !built.isEmpty {
             selectedID = built[min(oldIndex, built.count - 1)].id
             return
         }
         selectedID = built.first?.id
+    }
+
+    /// Size reads go one at a time on a queue of their own: one that
+    /// hangs on a share that is gone holds up only the reads after it.
+    private static let sizeQueue = DispatchQueue(label: "Klippari.fileSizes", qos: .utility)
+
+    private func readFileSize(_ files: [URL], hash: String) {
+        let generation = sizeGeneration
+        let key = "\(generation) \(hash)"
+        guard !sizesBeingRead.contains(key) else { return }
+        sizesBeingRead.insert(key)
+        Self.sizeQueue.async {
+            let size = RowPresentation.totalSize(of: files)
+            // Holds the model until the answer comes. One replaced by Try
+            // Again or Reset Saved History then only rebuilds rows that
+            // nothing shows.
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self.sizesBeingRead.remove(key)
+                    guard generation == self.sizeGeneration, self.hidesContents else { return }
+                    self.fileSizes[hash] = .some(size)
+                    guard !self.sizeRebuildPending else { return }
+                    self.sizeRebuildPending = true
+                    DispatchQueue.main.async {
+                        MainActor.assumeIsolated {
+                            self.sizeRebuildPending = false
+                            self.rebuild(keepingSelection: true)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

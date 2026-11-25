@@ -25,6 +25,8 @@ copied and lets you paste any of them easily from the keyboard.</p>
   tokens) in memory only, masked, for 10 minutes
 - Pastes an item as it was copied, or as plain text
 - Keeps a cleared history for 24 hours, so a clear can be undone
+- Presentation Mode hides what was copied in the panel, for streaming
+  or recording the screen
 - Follows the system light or dark appearance
 - Lives in the menu bar and starts at login
 
@@ -67,6 +69,8 @@ unless Position is on in Settings.
 The menu bar icon has:
 
 - **Pause/Resume Capture**: stop and restart recording.
+- **Presentation Mode**: hide what was copied in the panel (see
+  below). A slash across the menu bar icon shows it is on.
 - **Try Again**: only shown while the history isn't being saved. Opens
   the saved history again, as a relaunch would, after the keychain
   refused (Deny clicked by mistake) or the key was missing.
@@ -82,12 +86,12 @@ The menu bar icon has:
   can restore what was cleared.
 - **Reset Panel Position**: put the panel back in the middle.
 - **Settings…**: history size (5 to 500 items), the shortcut, start at
-  login, and three panel options, all off by default: **Mouse** (point
-  at a row to select it, click to paste, Shift+click to paste as plain
-  text), **Position** (open next to
-  the text field being typed in, or else the pointer) and **Images**
-  (enlarge the selected image beside the panel), and **Secrets**, also
-  off by default (see below). After a clear,
+  login, four panel options, all off by default: **Mouse** (point at a
+  row to select it, click to paste, Shift+click to paste as plain
+  text), **Position** (open next to the text field being typed in, or
+  else the pointer), **Images** (enlarge the selected image beside the
+  panel) and **Presentation** (Presentation Mode, as in the menu), and
+  **Secrets**, also off by default (see below). After a clear,
   **Cleared history** offers Restore and Delete. The app's version is
   at the bottom.
 - **Quit Klippari**.
@@ -95,6 +99,32 @@ The menu bar icon has:
 To change the shortcut, select the field in Settings, press Return and
 type the new combination. Standard commands such as Cmd+V and Cmd+Q are
 refused.
+
+### Presentation Mode
+
+For streaming, recording the screen or sharing it in a call. While it is
+on, the panel shows what kind of item each row is and nothing of what it
+holds: 'Text · 3 lines', 'Styled text', 'Link', 'File · pdf · 2.3 MB',
+'Folder', 'Image 1280 × 720 · PNG', 'Other' or 'Secret', with the source
+app and age. No text, link, file name or thumbnail shows, and the
+enlarged image is off. A secret does not show even its masked line. Each
+row has a small colour swatch, picked from its content with a key that
+changes every launch: a row keeps its colour as it moves up the list,
+which helps tell rows apart along with the app and age (two rows can
+share a colour), but nobody watching can tell what a colour stands for.
+Secrets all share one grey swatch with a lock. Tap Option, then press
+and hold it, to see the first few characters of the selected text, link
+or file name; let go, press any key or move the selection to hide them
+again. Typing a character that needs Option does not peek unless you tap
+Option and pause on it first. Images and secrets have no peek, and the
+footer offers it only where there is one. A password copied with Secrets
+off is ordinary text, so a peek shows its start. The filter matches only
+what the rows show (kind, size, app), so typing cannot reveal what is
+hidden.
+
+Nothing stored changes: copies are saved, kept, pasted and cleared as
+usual, and the mode is remembered across restarts. It protects the panel
+only: what you paste shows in the app you paste into.
 
 ## Build and install
 

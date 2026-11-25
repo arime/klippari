@@ -8,6 +8,8 @@ import SwiftUI
 private final class HistoryPanel: NSPanel {
     /// Returns true when it handled the key.
     var keyHandler: ((NSEvent) -> Bool)?
+    /// Sees the modifier keys change, for Option to peek.
+    var flagsHandler: ((NSEvent) -> Void)?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
@@ -24,6 +26,7 @@ private final class HistoryPanel: NSPanel {
     override func sendEvent(_ event: NSEvent) {
         // Intercept before the filter field sees the key, so arrows,
         // Return and Esc drive the list rather than the text cursor.
+        if event.type == .keyDown || event.type == .flagsChanged { flagsHandler?(event) }
         if event.type == .keyDown, keyHandler?(event) == true { return }
         super.sendEvent(event)
     }
@@ -57,6 +60,27 @@ private final class HistoryPanel: NSPanel {
     /// from the user dragging the panel.
     private var placedOrigin: NSPoint?
     private let preview: ImagePreviewController
+    /// Tap Option, then hold it, to peek in Presentation Mode.
+    private var peekGesture = PeekGesture()
+    private var peekTimer: Timer?
+
+    /// The shortcut was pressed: it never reaches the panel as a key,
+    /// so it ends a peek, and any tap in progress, here.
+    func shortcutPressed() {
+        endPeek()
+    }
+
+    private func endPeek() {
+        peekGesture.keyPressed()
+        stopPeeking()
+    }
+
+    private func stopPeeking() {
+        peekTimer?.invalidate()
+        peekTimer = nil
+        if model.peeking { model.peeking = false }
+    }
+
     /// The image row whose thumbnail the pointer is over. It is shown
     /// instead of the selection while the pointer stays there.
     private var hoveredImage: UUID? {
@@ -114,10 +138,43 @@ private final class HistoryPanel: NSPanel {
             )
         )
         panel.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
+        // Tap Option, then hold it: peek at the selected row in
+        // Presentation Mode. Any key or other modifier ends the peek, and
+        // typing a character that needs Option never starts one.
+        panel.flagsHandler = { [weak self] event in
+            guard let self else { return }
+            guard event.type == .flagsChanged, model.hidesContents else {
+                endPeek()
+                return
+            }
+            let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
+            peekGesture.modifiersChanged(optionAlone: flags == [.option], none: flags.isEmpty, at: event.timestamp)
+            stopPeeking()
+            guard peekGesture.armedAt != nil else { return }
+            // The selection may move during the hold without a key the
+            // panel sees (the pointer, an Option shortcut): then no peek.
+            let armedOn = model.selectedID
+            let timer = Timer(timeInterval: PeekGesture.hold, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, self.model.hidesContents, self.model.selectedID == armedOn,
+                          self.peekGesture.shouldPeek(at: ProcessInfo.processInfo.systemUptime)
+                    else { return }
+                    self.model.peeking = true
+                }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            peekTimer = timer
+        }
         trackPreview()
     }
 
     // MARK: Enlarged image
+
+    /// Presentation Mode was turned on or off: hides the enlarged image
+    /// at once rather than on the next turn of the run loop.
+    func presentationModeChanged() {
+        refreshPreview()
+    }
 
     /// Follows the selection, the list and the Images setting, so the
     /// preview changes as soon as any of them does, keyboard included.
@@ -127,6 +184,7 @@ private final class HistoryPanel: NSPanel {
             _ = model.selectedID
             _ = model.rows
             _ = settings.magnifyImages
+            _ = model.hidesContents
             _ = focus.rowFrames
         } onChange: { [weak self] in
             // Called before the change lands; look once it has.
@@ -137,8 +195,14 @@ private final class HistoryPanel: NSPanel {
     /// Makes the image rows' previews ahead of time, then shows the
     /// hovered image, or else the selected one if it is an image.
     private func refreshPreview() {
-        guard settings.magnifyImages else {
+        // Presentation Mode shows no image, small or large.
+        guard settings.magnifyImages, !model.hidesContents else {
+            // Also called at once when Presentation Mode turns on, so the
+            // enlarged image never outlasts the switch.
             preview.hide()
+            // A hover that ends while thumbnails are hidden is never
+            // reported; forget it so it cannot come back afterwards.
+            if model.hidesContents, hoveredImage != nil { hoveredImage = nil }
             // Nothing is listed for previews: let go of the decrypted ones.
             preview.preload([])
             if !focus.rowFrames.isEmpty { focus.rowFrames = [:] }
@@ -221,6 +285,7 @@ private final class HistoryPanel: NSPanel {
     }
 
     func hide() {
+        endPeek()
         preview.hide()
         panel.orderOut(nil)
     }

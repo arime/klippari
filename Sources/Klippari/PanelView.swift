@@ -139,6 +139,17 @@ struct PanelView: View {
                 .font(.system(size: 17))
                 .padding(5)
                 .focused($filterFocused)
+            if model.hidesContents {
+                // Says why the rows show no text, to the user and to anyone
+                // watching the stream.
+                Label("Presentation Mode", systemImage: "eye.slash")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Color.primary.opacity(0.08), in: Capsule())
+                    .fixedSize()
+            }
             Text(model.countLabel)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
@@ -162,14 +173,23 @@ struct PanelView: View {
                         ForEach(model.rows) { row in
                             RowView(
                                 row: row, isSelected: row.id == model.selectedID,
-                                appWidth: appWidth, // A secret has no thumbnail, even if its item had one
-                                // before it was copied again as a secret.
-                                thumbnail: { row.expiresIn == nil ? thumbnails.image(for: row.id, in: storage) : nil },
-                                onHoverThumbnail: settings.magnifyImages
-                                    ? { inside in onHoverImage(row.id, inside) } : nil
+                                appWidth: appWidth,
+                                // A secret has no thumbnail, even if its item
+                                // had one before it was copied again as a
+                                // secret, and Presentation Mode shows none.
+                                thumbnail: {
+                                    row.expiresIn == nil && !model.hidesContents
+                                        ? thumbnails.image(for: row.id, in: storage) : nil
+                                },
+                                onHoverThumbnail: settings.magnifyImages && !model.hidesContents
+                                    ? { inside in onHoverImage(row.id, inside) } : nil,
+                                peek: model.peek(for: row)
                             )
                             .id(row.id)
-                            .modifier(RowFrame(enabled: settings.magnifyImages, id: row.id, focus: focus))
+                            .modifier(RowFrame(
+                                enabled: settings.magnifyImages && !model.hidesContents,
+                                id: row.id, focus: focus
+                            ))
                             .modifier(RowMouse(
                                 enabled: settings.mouseOnRows,
                                 hover: {
@@ -260,6 +280,11 @@ struct PanelView: View {
                 // than quick paste, and the footer has room for one.
                 if model.selectionIsSecret {
                     KeyHint(keys: "⌘ S", label: "Not a secret")
+                } else if model.selectionCanPeek {
+                    // The way to tell rows apart matters more than quick
+                    // paste while the contents are hidden. Not offered on
+                    // an image, which has no characters to show.
+                    KeyHint(keys: "⌥ ⌥", label: "Peek")
                 } else {
                     KeyHint(keys: "⌘ 1–9", label: "Quick paste")
                 }
@@ -350,9 +375,11 @@ private struct SecretRowAccessibility: ViewModifier {
     func body(content: Content) -> some View {
         if let expiresIn = row.expiresIn {
             let from = row.sourceApp.isEmpty ? "" : ", from \(row.sourceApp)"
+            // In Presentation Mode the title is just 'Secret'.
+            let what = row.presentation.marker == .secret ? "Secret" : "Secret: \(row.presentation.spokenTitle)"
             content
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Secret: \(row.presentation.spokenTitle)\(from), removed in \(expiresIn)")
+                .accessibilityLabel("\(what)\(from), removed in \(expiresIn)")
         } else {
             content
         }
@@ -367,6 +394,9 @@ private struct RowView: View {
     let thumbnail: () -> NSImage?
     /// Set when hovering an image's thumbnail should enlarge it.
     var onHoverThumbnail: ((Bool) -> Void)?
+    /// What the row shows in place of its title while the user peeks in
+    /// Presentation Mode.
+    var peek: String?
 
     private var primary: Color { isSelected ? .white : .primary }
     private var secondary: Color { isSelected ? .white.opacity(0.8) : .secondary }
@@ -388,7 +418,10 @@ private struct RowView: View {
             if let expiresIn = row.expiresIn {
                 // A secret: masked, and gone from the history in this long.
                 HStack(spacing: 3) {
-                    Image(systemName: "lock.fill")
+                    // In Presentation Mode the swatch has the lock already.
+                    if row.presentation.marker != .secret {
+                        Image(systemName: "lock.fill")
+                    }
                     Text(expiresIn).monospacedDigit()
                 }
                 .font(.system(size: 11, weight: .medium))
@@ -426,8 +459,10 @@ private struct RowView: View {
     /// view. The tag always shows in full.
     private var title: some View {
         HStack(spacing: 0) {
-            Text(row.presentation.title)
-                .font(.system(size: 15, weight: isSelected ? .medium : .regular))
+            Text(peek ?? row.presentation.title)
+                .font(peek == nil
+                    ? .system(size: 15, weight: isSelected ? .medium : .regular)
+                    : .system(size: 15, weight: .medium, design: .monospaced))
                 .foregroundStyle(primary)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -445,7 +480,25 @@ private struct RowView: View {
     }
 
     @ViewBuilder private var icon: some View {
-        if row.presentation.kind == .image, let image = thumbnail() {
+        if let marker = row.presentation.marker {
+            // Presentation Mode: a colour that tells rows apart, in place
+            // of the kind's symbol, which the title already gives.
+            RoundedRectangle(cornerRadius: 6)
+                .fill(marker == .secret ? Color.secondary.opacity(0.35) : Self.markerColors[marker.hue])
+                .frame(width: 22, height: 22)
+                .overlay {
+                    if marker == .secret {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(Color.white.opacity(isSelected ? 0.7 : 0), lineWidth: 1.5)
+                )
+                .accessibilityHidden(true)
+        } else if row.presentation.kind == .image, let image = thumbnail() {
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
@@ -459,6 +512,18 @@ private struct RowView: View {
                 .foregroundStyle(isSelected ? Color.white : Color.secondary)
         }
     }
+
+    /// One colour for each of `RowMarker.hueCount` hues, set apart by
+    /// hue and by lightness, so they read apart in light and dark mode
+    /// alike. Rows may still share one: there are only twelve.
+    static let markerColors: [Color] = [
+        Color(red: 0.85, green: 0.20, blue: 0.20), Color(red: 0.95, green: 0.55, blue: 0.10),
+        Color(red: 0.93, green: 0.80, blue: 0.15), Color(red: 0.45, green: 0.75, blue: 0.20),
+        Color(red: 0.10, green: 0.50, blue: 0.25), Color(red: 0.20, green: 0.75, blue: 0.75),
+        Color(red: 0.55, green: 0.78, blue: 1.00), Color(red: 0.30, green: 0.35, blue: 0.80),
+        Color(red: 0.55, green: 0.35, blue: 0.85), Color(red: 0.85, green: 0.40, blue: 0.70),
+        Color(red: 0.50, green: 0.30, blue: 0.15), Color(red: 0.85, green: 0.75, blue: 0.55),
+    ]
 
     private var symbolName: String {
         switch row.presentation.kind {
