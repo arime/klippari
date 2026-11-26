@@ -9,7 +9,8 @@ import SwiftUI
 /// `archive` gives it a cleared history to show, and `full` adds the
 /// note a restore leaves when the history had no room for everything.
 /// `unsaved` renders the panel as it is while the history is not being
-/// saved. `secrets` shows Settings with Secrets on.
+/// saved. `secrets` shows Settings with Secrets on. `presenting` turns
+/// Presentation Mode on, and `peek` peeks at the selected row in it.
 @MainActor enum Snapshot {
     static func runIfRequested() {
         let arguments = CommandLine.arguments
@@ -52,6 +53,11 @@ import SwiftUI
         }
         if arguments.contains("secrets") {
             settings.detectSecrets = true
+        }
+        if arguments.contains("presenting") {
+            settings.presentationMode = true
+            model.hidesContents = true
+            model.peeking = arguments.contains("peek")
         }
         let view: AnyView
         if arguments.contains("settings") {

@@ -116,6 +116,17 @@ struct Shortcut: Codable, Equatable {
         }
     }
 
+    /// Presentation Mode: the panel shows what kind of item each row is,
+    /// not what it holds, for streaming or recording the screen. Nothing
+    /// stored changes. Off by default; remembered across restarts, so a
+    /// relaunch in the middle of a stream stays hidden.
+    var presentationMode: Bool {
+        didSet {
+            defaults.set(presentationMode, forKey: "presentationMode")
+            onChange?()
+        }
+    }
+
     /// The cleared history, for Settings to offer restoring. Kept up
     /// to date by the app; not stored in the preferences.
     var archive: ArchiveSummary?
@@ -139,5 +150,9 @@ struct Shortcut: Codable, Equatable {
         openAtPointer = defaults.bool(forKey: "openAtPointer")
         magnifyImages = defaults.bool(forKey: "magnifyImages")
         detectSecrets = defaults.bool(forKey: "detectSecrets")
+        // Left by development builds of the dropped 'Always mask chosen
+        // texts'; nothing reads it.
+        defaults.removeObject(forKey: "maskChosenTexts")
+        presentationMode = defaults.bool(forKey: "presentationMode")
     }
 }

@@ -148,6 +148,34 @@ Expected behaviour is defined in `specification.md`.
 
 ## Menu bar and settings
 
+- [ ] Presentation Mode in the menu gets a checkmark, a slash crosses
+      the menu bar icon, and Settings' Presentation toggle follows. The
+      panel then shows only kinds ('Text · 3 lines', 'Link',
+      'File · pdf', 'Folder', 'Image …', 'Secret'), apps, ages
+      and colours: no text, file name, thumbnail or enlarged image, and
+      a secret shows no prefix or last characters.
+- [ ] A row keeps its colour when copied again and moved to the top, and
+      when deleted and copied again; after a relaunch the colours are
+      likely to differ.
+- [ ] Tapping Option, then holding it, shows the first characters of the
+      selected row only; letting go hides them. Holding Option alone,
+      however long, does not. Another modifier, an arrow or any other
+      key ends the peek, and so does moving the pointer to another row
+      with Mouse on.
+- [ ] On a Finnish or German layout, typing @ or { in the filter shows
+      no peek: after resting on Option for a second, and after tapping
+      Option once and typing @ straight away.
+- [ ] Two secrets show the same grey swatch with a lock.
+- [ ] With files from Documents, Desktop, Downloads and a network share
+      in the history, turning Presentation Mode on shows their types
+      and asks for no access to any of them.
+- [ ] A folder shows as 'Folder'; a file named 'Clients.AcmeMerger'
+      shows as 'File' with no type.
+- [ ] Typing a word from a hidden text in the filter finds nothing;
+      typing the app's name finds its rows.
+- [ ] Return pastes the selected row in full, as usual.
+- [ ] Quit and relaunch: Presentation Mode is still on.
+
 - [ ] The menu bar icon shows in light and dark menu bars and dims
       while capture is paused.
 - [ ] Pause stops capture, and resume does not record what was copied
@@ -184,7 +212,8 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Over a 1.0 history with a few hundred items, large images among
       them: the menu bar icon answers at once, the menu says
       'Encrypting the saved history…' until the history opens, and
-      the shortcut works from then on.
+      the shortcut works from then on. Presentation Mode and Pause
+      chosen in the menu meanwhile slash and dim the icon at once.
 - [ ] With a different 'Klippari history key' put in the keychain (an
       older keychain restored, say), Klippari relaunched says 'The key
       in the keychain doesn't open it', keeps the old files, and
@@ -198,6 +227,9 @@ Expected behaviour is defined in `specification.md`.
       refused, and a failed registration keeps the previous shortcut.
 - [ ] A changed shortcut takes effect at once and survives a relaunch.
 - [ ] Settings can be operated with the keyboard alone.
+- [ ] With VoiceOver running (Cmd+F5), moving through Settings reads
+      each row's label once, with its control ('Secrets, group', then
+      the toggle), not the label again on its own.
 - [ ] The bottom of Settings shows the version set in
       `Resources/Info.plist`.
 

@@ -132,6 +132,21 @@ public struct RestoreResult: Equatable, Sendable {
         trim()
         // Saved items are never taken for secrets afterwards, at launch
         // or on Restore: only new copies are.
+
+        Self.removeMaskedTextsLeftOver(beside: storage.root)
+    }
+
+    /// Development builds of 'Always mask chosen texts', since dropped,
+    /// kept the texts the user chose, sealed, in a file beside the
+    /// history. Nothing reads it any more; it is deleted so that those
+    /// texts leave the disk, with the copy a crash may have left staged.
+    static func removeMaskedTextsLeftOver(beside root: URL) {
+        var base = root.lastPathComponent
+        if base.hasSuffix(".noindex") { base.removeLast(".noindex".count) }
+        let folder = root.deletingLastPathComponent()
+        for name in [base + "-masked-texts", ".tmp-" + base + "-masked-texts"] {
+            try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))
+        }
     }
 
     /// Encrypts the history and the cleared history written before

@@ -140,6 +140,7 @@ import os
         monitor.isPaused = settings.isPaused
         // PanelModel takes over store.onChange; nothing else may set it.
         model = PanelModel(store: store)
+        model.hidesContents = settings.presentationMode
         model.warning = unsaved?.panelWarning
         panel = PanelController(model: model, storage: storage, settings: settings)
         panel.onPaste = { [weak self] item, plainText in
@@ -455,6 +456,10 @@ import os
         // Turning it off leaves the secrets already in the history to
         // expire as usual, so a click never writes a password to disk.
         store.detectsSecrets = settings.detectSecrets
+        if model.hidesContents != settings.presentationMode {
+            model.hidesContents = settings.presentationMode
+            panel?.presentationModeChanged()
+        }
         if monitor.isPaused != settings.isPaused {
             monitor.isPaused = settings.isPaused
         }
@@ -465,6 +470,7 @@ import os
     /// steps down the list so the modifiers can be held and V tapped.
     private func hotKeyPressed() {
         if panel.isVisible {
+            panel.shortcutPressed()
             model.moveSelection(by: 1)
         } else {
             // A secret whose time ran out since the last check must not

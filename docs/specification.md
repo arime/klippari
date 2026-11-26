@@ -301,6 +301,55 @@ without the mouse.
   just made, so it can always be restored.
 - Items are ordered by last-used time, newest first.
 
+## Presentation Mode
+
+- A switch in the menu bar (Presentation Mode) and in Settings
+  (Presentation), off by default and remembered across restarts, so that
+  a relaunch during a stream stays hidden. It changes only what the
+  panel draws: nothing is stored, kept, deleted or pasted differently.
+- While it is on, each row shows its kind and nothing of what it holds:
+  'Text' (with '3 lines' when it has more than one), 'Styled text',
+  'Link', 'File', 'Folder' or '3 files' (also for folders) with their
+  types (a folder's too, if it has a known extension) ('pdf, png'; only
+  extensions the Mac knows as a type, so the end of a name such as
+  'Clients.AcmeMerger' does not show unless some installed app declares
+  it), 'Image' with its size and format, 'Other' for anything else, and
+  'Secret' for a secret, without even its masked line, but with its lock
+  and time left. A file row is worked out from the files' names alone:
+  the files themselves are never touched, since reading even a size in
+  Documents, Desktop or on a share makes macOS ask for access. The
+  source app, age and quick-paste number show as usual. No thumbnail
+  shows, and the enlarged image (Images) is off.
+- In place of the kind's symbol, each row has a colour swatch: one of
+  twelve colours, from an HMAC of the item's content hash with a key
+  made afresh each launch. The same content shows the same colour for as
+  long as the app runs; the key is never shown or stored, so a colour
+  says nothing of the content. Two rows may share a colour. Every secret
+  has the same grey swatch with a lock instead, so a secret copied again
+  looks like any other.
+- Tapping Option alone, then pressing it again within 0.35 seconds and
+  holding it for 0.15 seconds with no key, peeks: the selected row shows
+  the first six characters of its first line (a link's without
+  'https://' and 'www.'; a file's name), followed by '…' when there is
+  more, in a monospaced font. Typing a character that needs Option (@ on
+  a Finnish keyboard) does not peek after resting on Option, nor after a
+  quick tap of Option with the key typed at once; only a tap followed by
+  a pause of 0.15 seconds on the second press shows a peek before the
+  key. Letting go, any other modifier, any key press or the selection
+  moving (arrows, the pointer, the shortcut, a secret running out) ends
+  the peek, and so do opening and closing the panel; if the selection
+  moves during the hold, no peek starts. Images and secrets have no
+  peek. A password copied while Secrets is off is ordinary text, and a
+  peek shows its first six characters. Peeking works only while the mode
+  is on, and turning the mode on or off ends a peek. The footer shows '⌥
+  ⌥ Peek' in place of '⌘ 1–9 Quick paste' when the selected row has a
+  peek.
+- The filter matches only what a row shows: its kind words, tag and
+  source app, so typing cannot confirm what is hidden.
+- The search row shows a 'Presentation Mode' label beside the count.
+- It protects the panel only: a pasted item shows in the app it is
+  pasted into.
+
 ## The panel
 
 - Opened with the global shortcut. It takes keyboard focus without
@@ -470,8 +519,10 @@ instead.
 
 - The icon is the app icon's three rows as a monochrome template
   image, so macOS tints it for light and dark menu bars. It is dimmed
-  while capture is paused.
-- Menu: Pause Capture / Resume Capture, Clear History, Reset Panel
+  while capture is paused, and a slash crosses it while Presentation
+  Mode is on.
+- Menu: Pause Capture / Resume Capture, Presentation Mode (a
+  checkmark while on; see Presentation Mode), Clear History, Reset Panel
   Position, Settings… (Cmd+,), Quit Klippari (Cmd+Q). While the
   history is not being saved, two disabled lines come first: 'History
   isn't being saved' and why (the key is missing, the keychain did not
@@ -500,6 +551,13 @@ instead.
   or else the mouse pointer. Off by default.
 - **Images**: enlarge the selected image beside the panel. Off by
   default.
+- **Presentation**: 'Hide what was copied in the panel', the same as
+  the menu's Presentation Mode. Off by default. While on, a caption
+  says 'For streaming or recording the screen. Rows show only what
+  kind of item each is (with its line count, file type or image
+  size), its app, its age and a colour. Tap ⌥, then hold it, to peek
+  at the selected row. Nothing stored changes.'. The Images
+  toggle is dimmed while it is on.
 - **Secrets**: 'Mask passwords and API keys'. Off by default (see
   Secrets). While on, a caption says 'Kept in memory only, for 10
   minutes.'. Label and control columns have fixed widths that
