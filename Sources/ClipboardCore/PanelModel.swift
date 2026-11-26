@@ -36,9 +36,6 @@ import Observation
         didSet {
             guard hidesContents != oldValue else { return }
             peeking = false
-            // Sizes read in an earlier spell may be out of date.
-            fileSizes = [:]
-            sizeGeneration += 1
             // With a filter typed the selected row may stop matching: the
             // first match is selected then, as when the filter changes.
             rebuild(keepingSelection: true, elseFirst: true)
@@ -50,17 +47,6 @@ import Observation
     /// selection moves, however it moves, so a peek never runs down
     /// the list.
     public var peeking = false
-
-    /// Total sizes of copied files, by content hash, read off the main
-    /// thread: a network share that is gone can take long to answer.
-    /// An entry is nil while it cannot be read.
-    private var fileSizes: [String: Int64?] = [:]
-    private var sizesBeingRead: Set<String> = []
-    /// Set while a rebuild for sizes that came in is waiting: answers
-    /// arriving together cost one rebuild, not one each.
-    private var sizeRebuildPending = false
-    /// Bumped when the sizes are let go, so a late answer is ignored.
-    private var sizeGeneration = 0
 
     /// The key behind the rows' markers, made afresh each launch, so that
     /// nobody can work back from a marker to what the row holds. Shared
@@ -239,19 +225,12 @@ import Observation
         let date = now()
         var built: [Row] = []
         for item in items {
-            var presentation: RowPresentation
+            let presentation: RowPresentation
             if let cached = presentations[item.id], cached.isSecret == item.isSecret, cached.hidden == hidesContents {
                 presentation = cached.row
             } else {
                 presentation = RowPresentation(item, hidingContents: hidesContents, markerKey: Self.markerKey)
                 presentations[item.id] = (item.isSecret, hidesContents, presentation)
-            }
-            if hidesContents, !presentation.sizedFiles.isEmpty {
-                if let size = fileSizes[item.contentHash] {
-                    if let size { presentation = presentation.withFileSize(size) }
-                } else {
-                    readFileSize(presentation.sizedFiles, hash: item.contentHash)
-                }
             }
             guard presentation.matches(query) || item.id == pinnedID else { continue }
             built.append(Row(
@@ -278,37 +257,5 @@ import Observation
             return
         }
         selectedID = built.first?.id
-    }
-
-    /// Size reads go one at a time on a queue of their own: one that
-    /// hangs on a share that is gone holds up only the reads after it.
-    private static let sizeQueue = DispatchQueue(label: "Klippari.fileSizes", qos: .utility)
-
-    private func readFileSize(_ files: [URL], hash: String) {
-        let generation = sizeGeneration
-        let key = "\(generation) \(hash)"
-        guard !sizesBeingRead.contains(key) else { return }
-        sizesBeingRead.insert(key)
-        Self.sizeQueue.async {
-            let size = RowPresentation.totalSize(of: files)
-            // Holds the model until the answer comes. One replaced by Try
-            // Again or Reset Saved History then only rebuilds rows that
-            // nothing shows.
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    self.sizesBeingRead.remove(key)
-                    guard generation == self.sizeGeneration, self.hidesContents else { return }
-                    self.fileSizes[hash] = .some(size)
-                    guard !self.sizeRebuildPending else { return }
-                    self.sizeRebuildPending = true
-                    DispatchQueue.main.async {
-                        MainActor.assumeIsolated {
-                            self.sizeRebuildPending = false
-                            self.rebuild(keepingSelection: true)
-                        }
-                    }
-                }
-            }
-        }
     }
 }

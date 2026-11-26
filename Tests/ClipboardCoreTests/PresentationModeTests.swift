@@ -39,36 +39,24 @@ import ClipboardCore
         #expect(!link.matches("example"))
     }
 
-    @Test func filesShowTheirTypesAndASizeAddedLater() throws {
-        let folder = temporaryRoot().deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: folder) }
-        let pdf = folder.appendingPathComponent("Quarterly salaries.pdf")
-        let png = folder.appendingPathComponent("chart.png")
-        try Data(count: 2000).write(to: pdf)
-        try Data(count: 500).write(to: png)
+    @Test func filesShowTheirTypesFromTheirNamesAlone() {
+        // The files need not exist: rows never touch them, as reading
+        // even a size in Documents makes macOS ask for access.
+        let pdf = URL(fileURLWithPath: "/Users/someone/Documents/Quarterly salaries.pdf")
+        let png = URL(fileURLWithPath: "/Volumes/Share/chart.png")
         let one = hidden(content(typed(TypeName.fileURL, pdf.absoluteString), typed(TypeName.plainText, pdf.lastPathComponent)))
         #expect(one.title == "File")
-        // The size is read off the main thread, then added.
         #expect(one.tag == "pdf")
-        #expect(one.sizedFiles == [pdf])
         #expect(one.peek == "Quarte…")
         #expect(!one.matches("salaries"))
-        let size = try #require(RowPresentation.totalSize(of: one.sizedFiles))
-        let sized = one.withFileSize(size)
-        let shown = ByteCountFormatter.string(fromByteCount: 2000, countStyle: .file)
-        #expect(sized.tag == "pdf · " + shown)
-        #expect(sized.matches(shown))
+        #expect(one.matches("pdf"))
         let two = hidden(ClipContent(entries: [
             PasteboardEntry(types: [typed(TypeName.fileURL, pdf.absoluteString)]),
             PasteboardEntry(types: [typed(TypeName.fileURL, png.absoluteString)]),
         ]))
         #expect(two.title == "2 files")
         #expect(two.tag == "pdf, png")
-        #expect(RowPresentation.totalSize(of: two.sizedFiles) == 2500)
-        // A file that is gone, or a folder, has no size.
-        #expect(RowPresentation.totalSize(of: [URL(fileURLWithPath: "/nowhere/missing.key")]) == nil)
-        #expect(RowPresentation.totalSize(of: [folder]) == nil)
+        #expect(!two.matches("chart"))
     }
 
     @Test func onlyKnownTypesShowAndFoldersSaySo() {
@@ -231,39 +219,6 @@ import ClipboardCore
         #expect(titles(model) == ["Other"])
         #expect(model.rows[0].presentation.tag == nil)
         #expect(!model.selectionCanPeek)
-    }
-
-    @Test func aFileRowGetsItsSizeOnceRead() async throws {
-        let folder = temporaryRoot().deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: folder) }
-        let pdf = folder.appendingPathComponent("report.pdf")
-        try Data(count: 3000).write(to: pdf)
-        store.add(content(typed(TypeName.fileURL, pdf.absoluteString)), sourceApp: "Finder", now: at(0))
-        let model = PanelModel(store: store, now: { at(10) })
-        model.hidesContents = true
-        model.open()
-        #expect(model.rows[0].presentation.tag == "pdf")
-        // An answer still on its way when the mode turns off and on is
-        // dropped; the size read for the new spell shows.
-        model.hidesContents = false
-        model.hidesContents = true
-        let sized = "pdf · " + ByteCountFormatter.string(fromByteCount: 3000, countStyle: .file)
-        for _ in 0..<500 where model.rows[0].presentation.tag != sized {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        #expect(model.rows[0].presentation.tag == sized)
-        // Turning the mode off and on again reads the size afresh, and an
-        // answer from before is not kept: the file has grown since.
-        try Data(count: 9000).write(to: pdf)
-        model.hidesContents = false
-        model.hidesContents = true
-        #expect(model.rows[0].presentation.tag == "pdf")
-        let grown = "pdf · " + ByteCountFormatter.string(fromByteCount: 9000, countStyle: .file)
-        for _ in 0..<500 where model.rows[0].presentation.tag != grown {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        #expect(model.rows[0].presentation.tag == grown)
     }
 
     @Test func aRowCopiedAgainAsASecretEndsItsPeek() {

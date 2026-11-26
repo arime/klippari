@@ -86,12 +86,12 @@ The menu bar icon has:
   can restore what was cleared.
 - **Reset Panel Position**: put the panel back in the middle.
 - **Settings…**: history size (5 to 500 items), the shortcut, start at
-  login, four panel options, all off by default: **Mouse** (point at a
-  row to select it, click to paste, Shift+click to paste as plain
+  login, and four panel options, all off by default: **Mouse** (point
+  at a row to select it, click to paste, Shift+click to paste as plain
   text), **Position** (open next to the text field being typed in, or
   else the pointer), **Images** (enlarge the selected image beside the
-  panel) and **Presentation** (Presentation Mode, as in the menu), and
-  **Secrets**, also off by default (see below). After a clear,
+  panel) and **Presentation** (Presentation Mode, as in the menu).
+  **Secrets** is also off by default (see below). After a clear,
   **Cleared history** offers Restore and Delete. The app's version is
   at the bottom.
 - **Quit Klippari**.
@@ -104,7 +104,7 @@ refused.
 
 For streaming, recording the screen or sharing it in a call. While it is
 on, the panel shows what kind of item each row is and nothing of what it
-holds: 'Text · 3 lines', 'Styled text', 'Link', 'File · pdf · 2.3 MB',
+holds: 'Text · 3 lines', 'Styled text', 'Link', 'File · pdf',
 'Folder', 'Image 1280 × 720 · PNG', 'Other' or 'Secret', with the source
 app and age. No text, link, file name or thumbnail shows, and the
 enlarged image is off. A secret does not show even its masked line. Each
@@ -119,7 +119,7 @@ again. Typing a character that needs Option does not peek unless you tap
 Option and pause on it first. Images and secrets have no peek, and the
 footer offers it only where there is one. A password copied with Secrets
 off is ordinary text, so a peek shows its start. The filter matches only
-what the rows show (kind, size, app), so typing cannot reveal what is
+what the rows show (kind, type, app), so typing cannot reveal what is
 hidden.
 
 Nothing stored changes: copies are saved, kept, pasted and cleared as

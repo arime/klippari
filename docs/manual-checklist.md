@@ -151,7 +151,7 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Presentation Mode in the menu gets a checkmark, a slash crosses
       the menu bar icon, and Settings' Presentation toggle follows. The
       panel then shows only kinds ('Text · 3 lines', 'Link',
-      'File · pdf · 2 MB', 'Folder', 'Image …', 'Secret'), apps, ages
+      'File · pdf', 'Folder', 'Image …', 'Secret'), apps, ages
       and colours: no text, file name, thumbnail or enlarged image, and
       a secret shows no prefix or last characters.
 - [ ] A row keeps its colour when copied again and moved to the top, and
@@ -166,10 +166,9 @@ Expected behaviour is defined in `specification.md`.
       no peek: after resting on Option for a second, and after tapping
       Option once and typing @ straight away.
 - [ ] Two secrets show the same grey swatch with a lock.
-- [ ] A file row shows its size a moment after the mode is turned on. A
-      file copied from a network share, with the share then
-      disconnected, shows its type without a size, and turning
-      Presentation Mode on does not stall.
+- [ ] With files from Documents, Desktop, Downloads and a network share
+      in the history, turning Presentation Mode on shows their types
+      and asks for no access to any of them.
 - [ ] A folder shows as 'Folder'; a file named 'Clients.AcmeMerger'
       shows as 'File' with no type.
 - [ ] Typing a word from a hidden text in the filter finds nothing;
@@ -213,7 +212,8 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Over a 1.0 history with a few hundred items, large images among
       them: the menu bar icon answers at once, the menu says
       'Encrypting the saved history…' until the history opens, and
-      the shortcut works from then on.
+      the shortcut works from then on. Presentation Mode and Pause
+      chosen in the menu meanwhile slash and dim the icon at once.
 - [ ] With a different 'Klippari history key' put in the keychain (an
       older keychain restored, say), Klippari relaunched says 'The key
       in the keychain doesn't open it', keeps the old files, and

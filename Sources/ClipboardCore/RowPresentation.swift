@@ -48,11 +48,6 @@ public struct RowPresentation: Equatable, Sendable {
     /// of the title only while the user holds Option on the selected row
     /// in Presentation Mode. Nil for images, secrets and other kinds.
     public var peek: String?
-    /// In Presentation Mode, the files whose total size the tag can
-    /// show once it is known; the size is read off the main thread
-    /// (`totalSize(of:)`) and added with `withFileSize(_:)`.
-    public var sizedFiles: [URL] = []
-
     /// How many characters a peek shows.
     public static let peekLength = 6
 
@@ -174,8 +169,10 @@ public struct RowPresentation: Equatable, Sendable {
             }
         case .file:
             title = files.count == 1 ? (files[0].hasDirectoryPath ? "Folder" : "File") : "\(files.count) files"
+            // From the names alone: the files themselves are never
+            // touched, as reading even a size in Documents or on a share
+            // makes macOS ask the user for access.
             tag = Self.fileTypes(files)
-            sizedFiles = files
             peek = files.first.map { Self.peek($0.lastPathComponent) }
         case .image:
             peek = nil
@@ -206,30 +203,6 @@ public struct RowPresentation: Equatable, Sendable {
         }
         guard !types.isEmpty else { return nil }
         return types.prefix(3).joined(separator: ", ") + (types.count > 3 ? "…" : "")
-    }
-
-    /// The files' total size, when every one is a regular file that can
-    /// be read. Touches the disk, so it is called off the main thread.
-    public static func totalSize(of files: [URL]) -> Int64? {
-        var total: Int64 = 0
-        for file in files {
-            guard let attributes = try? FileManager.default.attributesOfItem(atPath: file.path),
-                  attributes[.type] as? FileAttributeType == .typeRegular,
-                  let size = (attributes[.size] as? NSNumber)?.int64Value
-            else { return nil }
-            total += size
-        }
-        return files.isEmpty ? nil : total
-    }
-
-    /// This row with the files' total size added to its tag:
-    /// 'pdf · 2.3 MB'. The size can be searched, like the rest of the tag.
-    public func withFileSize(_ bytes: Int64) -> RowPresentation {
-        var row = self
-        let size = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
-        row.tag = [tag, size].compactMap { $0 }.joined(separator: " · ")
-        row.searchText = searchText + "\n" + size.lowercased()
-        return row
     }
 
     /// True for a single image file that comes with its own PNG bytes, as

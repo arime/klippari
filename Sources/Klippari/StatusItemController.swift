@@ -172,12 +172,17 @@ import AppKit
     /// Which icon the button shows, so it is drawn again only on a change.
     private var shownPresenting = false
 
+    // Each toggle redraws the icon itself: settings changes reach
+    // refresh() only once the history has opened, and a 1.0 history
+    // can take a while to encrypt.
     @objc private func togglePresentation() {
         settings.presentationMode.toggle()
+        refresh()
     }
 
     @objc private func togglePause() {
         settings.isPaused.toggle()
+        refresh()
     }
 
     @objc private func resetSavedHistory() {

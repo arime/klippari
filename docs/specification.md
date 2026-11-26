@@ -315,11 +315,11 @@ without the mouse.
   'Clients.AcmeMerger' does not show unless some installed app declares
   it), 'Image' with its size and format, 'Other' for anything else, and
   'Secret' for a secret, without even its masked line, but with its lock
-  and time left. A file row adds the files' total size ('pdf · 2.3 MB')
-  once it has been read off the main thread, so a network share that is
-  gone never holds up the panel; sizes are read again each time the mode
-  is turned on. The source app, age and quick-paste number show as
-  usual. No thumbnail shows, and the enlarged image (Images) is off.
+  and time left. A file row is worked out from the files' names alone:
+  the files themselves are never touched, since reading even a size in
+  Documents, Desktop or on a share makes macOS ask for access. The
+  source app, age and quick-paste number show as usual. No thumbnail
+  shows, and the enlarged image (Images) is off.
 - In place of the kind's symbol, each row has a colour swatch: one of
   twelve colours, from an HMAC of the item's content hash with a key
   made afresh each launch. The same content shows the same colour for as
@@ -554,9 +554,9 @@ instead.
 - **Presentation**: 'Hide what was copied in the panel', the same as
   the menu's Presentation Mode. Off by default. While on, a caption
   says 'For streaming or recording the screen. Rows show only what
-  kind of item each is (with its size or line count), its app, its
-  age and a colour. Tap ⌥, then hold it, to peek at the selected
-  row. Nothing stored changes.'. The Images
+  kind of item each is (with its line count, file type or image
+  size), its app, its age and a colour. Tap ⌥, then hold it, to peek
+  at the selected row. Nothing stored changes.'. The Images
   toggle is dimmed while it is on.
 - **Secrets**: 'Mask passwords and API keys'. Off by default (see
   Secrets). While on, a caption says 'Kept in memory only, for 10
