@@ -206,6 +206,9 @@ private struct SettingsRow<Content: View>: View {
                 .multilineTextAlignment(.trailing)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(width: labelWidth, alignment: .trailing)
+                // The row's group carries the label: read here as well,
+                // VoiceOver would say it twice.
+                .accessibilityHidden(true)
             content
                 .frame(width: controlWidth, alignment: .leading)
         }

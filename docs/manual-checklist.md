@@ -227,6 +227,9 @@ Expected behaviour is defined in `specification.md`.
       refused, and a failed registration keeps the previous shortcut.
 - [ ] A changed shortcut takes effect at once and survives a relaunch.
 - [ ] Settings can be operated with the keyboard alone.
+- [ ] With VoiceOver running (Cmd+F5), moving through Settings reads
+      each row's label once, with its control ('Secrets, group', then
+      the toggle), not the label again on its own.
 - [ ] The bottom of Settings shows the version set in
       `Resources/Info.plist`.
 
